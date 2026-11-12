@@ -67,6 +67,8 @@
 .real-hero-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 .real-public-complete .real-hero .primary-button { min-height: 48px; margin: 0; padding: 12px 20px; border-radius: 12px; font-size: 14px; }
 .real-public-complete .real-hero .real-explore { display: inline-flex; align-items: center; min-height: 48px; margin: 0; padding: 11px 16px; border-color: #ffffff65; color: #fff; background: #ffffff16; text-decoration: none; }
+.real-public-complete .real-hero-actions { column-gap: 16px !important; row-gap: 14px !important; }
+.real-public-complete .real-hero-actions > * { margin: 0 !important; }
 .real-hero-photo { position: relative; z-index: 1; justify-self: center; width: min(100%, 360px); aspect-ratio: .94; padding: 9px; overflow: hidden; border: 1px solid #ffffff55; border-radius: 190px 190px 32px 32px; background: linear-gradient(145deg,#ffffff2a,#ffffff0b); box-shadow: 0 24px 55px #002a3b42; }
 .real-hero-photo:before { content: ''; position: absolute; inset: 17px; border: 1px solid #eac56a80; border-radius: 180px 180px 25px 25px; pointer-events: none; z-index: 2; }
 .real-hero-photo img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 42%; border-radius: 180px 180px 25px 25px; }
@@ -97,7 +99,7 @@
   .real-hero-copy { max-width: none; }
   .real-public-complete .real-hero h1 { max-width: 100%; margin: 14px 0 12px; font-size: clamp(31px,8vw,40px); line-height: 1.35; }
   .real-public-complete .real-hero p { max-width: none; font-size: 14px; line-height: 1.8; }
-  .real-hero-actions { gap: 9px; margin-top: 18px; }
+  .real-public-complete .real-hero-actions { display: grid; justify-items: start; gap: 12px !important; margin-top: 18px; }
   .real-public-complete .real-hero .primary-button,.real-public-complete .real-hero .real-explore { min-height: 44px; padding: 10px 13px; font-size: 12px; }
   .real-hero-photo { width: min(68%, 235px); aspect-ratio: 1; }
 }
