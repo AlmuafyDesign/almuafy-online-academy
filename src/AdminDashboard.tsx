@@ -418,19 +418,22 @@ function ModuleManager({ active, profile, query }: { active: string; profile: Ac
       else if (field.type === 'number') payload[field.key] = value ? Number(value) : field.key === 'duration_minutes' ? 45 : field.key === 'sort_order' ? 0 : null
       else payload[field.key] = String(value ?? '').trim() || null
     }
-    if (!editing && ['classes', 'class_sessions', 'daily_lessons', 'homework', 'library_resources', 'notices'].includes(config.table)) payload.created_by = profile.id
+    if (!editing && ['class_sessions', 'daily_lessons', 'homework', 'library_resources', 'notices'].includes(config.table)) payload.created_by = profile.id
     if (!editing && config.table === 'attendance') payload.recorded_by = profile.id
     if (config.table === 'notices' && payload.status === 'published') payload.published_at = editing?.published_at || new Date().toISOString()
     if (config.table === 'library_resources') payload.status = editing ? editing.status : 'published'
     if (['classes', 'class_sessions', 'daily_lessons', 'homework', 'library_resources', 'notices'].includes(config.table)) payload.updated_at = new Date().toISOString()
     let result = editing ? await supabase.from(config.table).update(payload).eq('id', editing.id) : await supabase.from(config.table).insert(payload)
     let savedWithoutEnglishFields = false
-    const missingLibraryTranslations = config.table === 'library_resources' && result.error &&
-      (result.error.code === 'PGRST204' || /title_en|description_en|schema cache/i.test(result.error.message))
-    if (missingLibraryTranslations) {
+    const translationFields = config.table === 'classes'
+      ? ['name_en', 'subject_en', 'level_en', 'description_en']
+      : config.table === 'notices' ? ['title_en', 'description_en']
+        : config.table === 'library_resources' ? ['title_en', 'description_en'] : []
+    const missingOptionalTranslations = translationFields.length > 0 && result.error &&
+      (result.error.code === 'PGRST204' || translationFields.some(field => result.error?.message.includes(field)) || /schema cache/i.test(result.error.message))
+    if (missingOptionalTranslations) {
       const compatiblePayload = { ...payload }
-      delete compatiblePayload.title_en
-      delete compatiblePayload.description_en
+      translationFields.forEach(field => { delete compatiblePayload[field] })
       result = editing
         ? await supabase.from(config.table).update(compatiblePayload).eq('id', editing.id)
         : await supabase.from(config.table).insert(compatiblePayload)
@@ -441,7 +444,7 @@ function ModuleManager({ active, profile, query }: { active: string; profile: Ac
     const entityId = editing?.id ?? null
     void supabase.from('activity_logs').insert({ actor_id: profile.id, action: editing ? 'পরিবর্তন' : 'নতুন রেকর্ড', entity_type: config.table, entity_id: entityId ?? null, details: { label: active } })
     setMessage(savedWithoutEnglishFields
-      ? 'বই ও লিংক সংরক্ষিত হয়েছে। English title/description-এর জন্য Supabase-এ 20261112050000 migration চালান।'
+      ? 'তথ্য সংরক্ষিত হয়েছে। English translation field চালু করতে Supabase-এ 20261112050000 migration চালান।'
       : editing ? 'পরিবর্তন সংরক্ষিত হয়েছে।' : 'নতুন রেকর্ড যোগ হয়েছে.')
     setEditing(null); setForm({}); setFormOpen(false); setReload(count => count + 1)
   }
