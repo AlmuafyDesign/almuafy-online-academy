@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { AcademyProfile } from './services/supabase'
 import { supabase } from './services/supabase'
 import { clearTabMemory, readTabMemory, writeTabMemory } from './tab-memory'
+import VideoCallManager from './VideoCallManager'
 
 type IconName = 'grid' | 'users' | 'book' | 'calendar' | 'check' | 'layers' | 'bell' | 'settings' | 'search' | 'menu' | 'logout' | 'arrow' | 'clock' | 'plus' | 'chart'
 const paths: Record<IconName, React.ReactNode> = {
@@ -93,7 +94,7 @@ export default function AdminDashboard({ profile, onSignOut }: { profile: Academ
       <nav className="premium-nav">{navGroups.map(group => <section key={group.title}><h2>{group.title}</h2>{group.items.map(item => <button key={item.label} className={active === item.label ? 'active' : ''} onClick={() => { selectSection(item.label); setMenuOpen(false); setQuery('') }}><span className="nav-icon"><Icon name={item.icon}/></span><span>{item.label}</span>{item.label === 'ড্যাশবোর্ড' && <i/>}</button>)}</section>)}</nav>
       <div className="premium-side-bottom"><div className="premium-quote"><span>۞</span><div><b>ইলমের পথে একসাথে</b><small>শিক্ষাই হোক আলোর পথ</small></div></div><div className="premium-account"><span className="premium-avatar">{Array.from(name)[0] ?? 'আ'}</span><div><b>{name}</b><small>অ্যাডমিন</small></div><button aria-label="লগআউট" onClick={onSignOut}><Icon name="logout" size={17}/></button></div></div>
     </aside>
-    <main className="premium-main"><header className="premium-topbar"><button className="premium-menu" aria-label="মেনু খুলুন" onClick={() => setMenuOpen(true)}><Icon name="menu"/></button><div className="premium-crumb">একাডেমি <span>›</span> <b>{active}</b></div><div className="premium-actions"><label><Icon name="search" size={17}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="খুঁজুন…" aria-label="ড্যাশবোর্ডে খুঁজুন"/><kbd>⌕</kbd></label><span className="premium-top-avatar">{Array.from(name)[0] ?? 'আ'}</span><div className="premium-top-user"><b>{name}</b><small>একাডেমি অ্যাডমিন</small></div><button className="premium-logout" onClick={onSignOut}><Icon name="logout" size={17}/><span>লগআউট</span></button></div></header>
+    <main className="premium-main"><header className="premium-topbar"><button className="premium-menu" aria-label="মেনু খুলুন" onClick={() => setMenuOpen(true)}><Icon name="menu"/></button><div className="premium-crumb">একাডেমি <span>›</span> <b>{active}</b></div><div className="premium-actions"><VideoCallManager profile={profile}/><label><Icon name="search" size={17}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="খুঁজুন…" aria-label="ড্যাশবোর্ডে খুঁজুন"/><kbd>⌕</kbd></label><span className="premium-top-avatar">{Array.from(name)[0] ?? 'আ'}</span><div className="premium-top-user"><b>{name}</b><small>একাডেমি অ্যাডমিন</small></div><button className="premium-logout" onClick={onSignOut}><Icon name="logout" size={17}/><span>লগআউট</span></button></div></header>
       <div className="premium-content">
         {problem && <div className="premium-alert" role="status">{problem}</div>}
         {active === 'ড্যাশবোর্ড' ? <>

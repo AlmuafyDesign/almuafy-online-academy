@@ -13,17 +13,18 @@ npm run dev
 
 `.env.example` অনুসারে `.env.local` তৈরি করে Supabase Project URL এবং public anon key দিন। কখনো `service_role` key ব্রাউজার বা GitHub Pages build-এ দেবেন না।
 
-`supabase/migrations/`-এর SQL ফাইলগুলো Supabase SQL Editor-এ ক্রমানুসারে চালান। মূল schema কোনো seed/dummy data যোগ করে না। `20261112020000_academy_public_content.sql` অ্যাডভান্সড সেটিংসের প্রকাশ্য বিষয়, পাঠদান পদ্ধতি, সুবিধা ও অনলাইন ক্লাসের ধাপের কলাম যোগ করে। `20261112030000_secure_homework_submission_windows.sql` নতুন হোমওয়ার্কের deadline এবং শিক্ষক-নির্দেশিত revision অনুযায়ী শিক্ষার্থীর জমা/পরিবর্তন সীমিত করে। `20261112050000_public_english_content.sql` পাবলিক সাইটের English translation fields যোগ করে; এটি চালানোর পর Advanced Settings, ক্লাস, লাইব্রেরি ও নোটিশে ইংরেজি তথ্যও লিখে Save করুন। এই migration কোনো record/নমুনা content তৈরি করে না।
+নতুন Supabase setup হলে `supabase/migrations/`-এর SQL ফাইলগুলো Supabase SQL Editor-এ ক্রমানুসারে চালান। এই একাডেমির existing project-এ আগের migrations চালানো থাকলে শুধু নতুন migration `20261112060000_academy_video_calls.sql` চালাতে হবে। মূল schema কোনো seed/dummy data যোগ করে না। `20261112020000_academy_public_content.sql` অ্যাডভান্সড সেটিংসের প্রকাশ্য বিষয়, পাঠদান পদ্ধতি, সুবিধা ও অনলাইন ক্লাসের ধাপের কলাম যোগ করে। `20261112030000_secure_homework_submission_windows.sql` নতুন হোমওয়ার্কের deadline এবং শিক্ষক-নির্দেশিত revision অনুযায়ী শিক্ষার্থীর জমা/পরিবর্তন সীমিত করে। `20261112050000_public_english_content.sql` পাবলিক সাইটের English translation fields যোগ করে; এটি চালানোর পর Advanced Settings, ক্লাস, লাইব্রেরি ও নোটিশে ইংরেজি তথ্যও লিখে Save করুন। `20261112060000_academy_video_calls.sql` call access secure করে; কোনো নমুনা call বা শিক্ষার্থী তৈরি করে না।
 
 প্রথম মালিকের verified account তৈরি হওয়ার পর `supabase/provision-admin.template.sql`-এর placeholder SQL Editor-এ ব্যক্তিগতভাবে বদলে admin role দিন। শিক্ষার্থীর signup থেকে কখনো admin role দেওয়া হয় না।
 
 ## চালু থাকা মডিউল
 
 - অ্যাডমিন: শিক্ষার্থী, ভর্তি, ক্লাস, সময়সূচি, উপস্থিতি, দৈনিক পাঠ, পাঠের লিংক, হোমওয়ার্ক, জমা মূল্যায়ন, লাইব্রেরি বিভাগ/উপকরণ, নোটিশ, শিক্ষার্থী বিজ্ঞপ্তি, কার্যক্রম লগ, CSV রিপোর্ট এবং অ্যাডভান্সড সেটিংস।
+- অ্যাডমিন ও শিক্ষার্থী: যেকোনো সময় একে অন্যকে audio বা video call, incoming call গ্রহণ/বাতিল, mic/camera control এবং সরানো/ছোট-বড়/minimize করা call window। কল পেতে অপর ব্যক্তিকে app খোলা রেখে sign in থাকতে হবে। Browser/device-এর camera ও microphone permission দিতে হবে।
 - শিক্ষার্থী: নিজ ক্লাস, আসন্ন/চলমান ক্লাস, পাঠ/লিংক, হোমওয়ার্ক জমা, শিক্ষক feedback/marks, উপস্থিতি, প্রকাশিত লাইব্রেরি/নোটিশ/ব্যক্তিগত বিজ্ঞপ্তি এবং নিজ প্রোফাইল।
 - পাবলিক সাইট: বাংলা/English toggle, একাডেমির পরিচিতি, ক্লাস, শেখার পদ্ধতি/সুবিধা, পাঠ্য বিষয়, লাইব্রেরি, ব্যবহার-ধাপ, নোটিশ এবং যোগাযোগ। শিক্ষক পরিচিতি বা ছবি ফর্ম/পাবলিক সাইটে নেই।
 
-ভিডিও কল এখনো পরের ধাপ; সময়সূচিতে আপাতত বাহ্যিক meeting URL ব্যবহার করা যায়।
+Audio/video media সরাসরি দুই browser-এর মধ্যে যায়; Supabase Realtime কেবল call signal পাঠায় এবং call-এর অবস্থা রাখে। এতে আলাদা paid media service নেই। কিছু mobile/cellular network সরাসরি সংযোগ আটকাতে পারে; এমন network-এ call নাও জুড়তে পারে, কারণ এই free version-এ paid TURN relay নেই।
 
 ## GitHub Pages ও ফোনে ইনস্টল
 
