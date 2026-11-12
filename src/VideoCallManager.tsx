@@ -388,7 +388,7 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
   const statusText = callStatus === 'ringing' ? activeCall?.direction === 'outgoing' ? localText('কল করা হচ্ছে…', 'Calling…') : localText('সংযোগ হচ্ছে…', 'Connecting…')
     : callStatus === 'connecting' ? localText('সংযোগ করা হচ্ছে…', 'Connecting…')
       : callStatus === 'connected' ? formatDuration(seconds)
-        : callStatus === 'reconnecting' ? localText('আবার সংযোগ হচ্ছে…', 'Reconnecting…') : localText('নেটওয়ার্কে সংযোগ হয়নি', 'Could not connect to the network')
+        : callStatus === 'reconnecting' ? localText('আবার সংযোগ হচ্ছে…', 'Reconnecting…') : localText('ইন্টারনেট আছে, তবে কলের সরাসরি সংযোগ তৈরি হয়নি। দুইজন একই Wi-Fi-তে চেষ্টা করুন।', 'Your internet may be working, but the direct call link could not be made. Try with both devices on the same Wi-Fi.')
 
   const onDragStart = (event: React.PointerEvent<HTMLElement>) => {
     if ((event.target as HTMLElement).closest('button')) return
