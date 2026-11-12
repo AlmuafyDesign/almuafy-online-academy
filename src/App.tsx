@@ -17,7 +17,9 @@ function App() {
   const [notices, setNotices] = useState<any[]>([])
   const [publicLibrary, setPublicLibrary] = useState<any[]>([])
   const [error, setError] = useState('')
+  const [publicLoadFailed, setPublicLoadFailed] = useState(false)
   const [installEvent, setInstallEvent] = useState<any>(null)
+  const [publicMenuOpen, setPublicMenuOpen] = useState(false)
 
   useEffect(() => {
     const key = `almuafy-scroll:${window.location.pathname}`
@@ -97,7 +99,7 @@ function App() {
       setPublicClasses(classes.data ?? [])
       setNotices(noticeRows.data ?? [])
       setPublicLibrary(libraryRows.data ?? [])
-      if (settings.error || classes.error || noticeRows.error || libraryRows.error) setError(bi('পাবলিক তথ্য লোডে সমস্যা হয়েছে।', 'Some public information could not be loaded.', language))
+      if (settings.error || classes.error || noticeRows.error || libraryRows.error) setPublicLoadFailed(true)
     })
   }, [])
 
@@ -128,15 +130,22 @@ function App() {
   const visibleLibrary = publicLibrary.filter(item => !en || item.title_en?.trim())
   const visibleNotices = notices.filter(item => !en || item.title_en?.trim())
   const footerText = (en ? publicInfo?.footer_text_en : publicInfo?.footer_text)?.trim()
+  const closePublicMenu = () => setPublicMenuOpen(false)
   return <main className="real-public real-public-complete">
     <header className="real-public-nav">
-      <a href="#top"><img src={`${import.meta.env.BASE_URL}images/my-own-logo.png`} alt="Almuafy Academy logo"/><span><b>{academyName}</b><small>{text('ইলম, আমল ও আখলাক', 'Knowledge, Practice & Character')}</small></span></a>
-      <div>
-        <nav className="real-public-links" aria-label={text('প্রধান মেনু', 'Main navigation')}><a href="#about">{text('একাডেমি', 'Academy')}</a><a href="#classes">{text('ক্লাস', 'Classes')}</a><a href="#facilities">{text('সুবিধা', 'Facilities')}</a><a href="#library">{text('লাইব্রেরি', 'Library')}</a><a href="#notices">{text('নোটিশ', 'Notices')}</a><a href="#contact">{text('যোগাযোগ', 'Contact')}</a></nav>
-        <LanguageToggle/>
-        {installEvent && <button className="real-install" onClick={installApp}>{text('অ্যাপ ইনস্টল', 'Install app')}</button>}
-        <button onClick={() => setAuthMode('student-login')}>{text('শিক্ষার্থী লগইন', 'Student sign in')}</button>
-        <button className="real-admin-link" onClick={() => setAuthMode('admin-login')}>{text('অ্যাডমিন লগইন', 'Admin sign in')}</button>
+      <div className="real-public-nav-inner">
+        <a className="real-public-brand" href="#top" onClick={closePublicMenu}><img src={`${import.meta.env.BASE_URL}images/my-own-logo.png`} alt="Almuafy Academy logo"/><span><b>{academyName}</b><small>{text('ইলম, আমল ও আখলাক', 'Knowledge, Practice & Character')}</small></span></a>
+        <div className={`real-nav-content ${publicMenuOpen ? 'is-open' : ''}`} id="public-navigation">
+          <nav className="real-public-links" aria-label={text('প্রধান মেনু', 'Main navigation')}>
+            <a href="#about" onClick={closePublicMenu}>{text('একাডেমি', 'Academy')}</a><a href="#classes" onClick={closePublicMenu}>{text('ক্লাস', 'Classes')}</a><a href="#facilities" onClick={closePublicMenu}>{text('সুবিধা', 'Facilities')}</a><a href="#library" onClick={closePublicMenu}>{text('লাইব্রেরি', 'Library')}</a><a href="#notices" onClick={closePublicMenu}>{text('নোটিশ', 'Notices')}</a><a href="#contact" onClick={closePublicMenu}>{text('যোগাযোগ', 'Contact')}</a>
+          </nav>
+          <div className="real-nav-actions">
+            {installEvent && <button className="real-install" onClick={installApp}>{text('অ্যাপ ইনস্টল', 'Install app')}</button>}
+            <button className="real-student-link" onClick={() => { closePublicMenu(); setAuthMode('student-login') }}>{text('শিক্ষার্থী লগইন', 'Student sign in')}</button>
+            <button className="real-admin-link" onClick={() => { closePublicMenu(); setAuthMode('admin-login') }}>{text('অ্যাডমিন লগইন', 'Admin sign in')}</button>
+          </div>
+        </div>
+        <div className="real-nav-tools"><LanguageToggle/><button className="real-mobile-nav-toggle" type="button" aria-label={text(publicMenuOpen ? 'মেনু বন্ধ করুন' : 'মেনু খুলুন', publicMenuOpen ? 'Close menu' : 'Open menu')} aria-expanded={publicMenuOpen} aria-controls="public-navigation" onClick={() => setPublicMenuOpen(open => !open)}><span/><span/><span/><b>{text(publicMenuOpen ? 'বন্ধ করুন' : 'মেনু', publicMenuOpen ? 'Close' : 'Menu')}</b></button></div>
       </div>
     </header>
     <section className="real-hero" id="top">
@@ -149,9 +158,9 @@ function App() {
           <a className="real-explore" href="#about">{text('একাডেমি সম্পর্কে জানুন', 'Explore the academy')} ↓</a>
         </div>
       </div>
-      <div className="real-hero-photo"><img src={`${import.meta.env.BASE_URL}images/academy-founder.jpg`} alt="Academy representative seated at a desk"/></div>
+      <div className="real-hero-photo"><img src={`${import.meta.env.BASE_URL}images/academy-founder.jpg`} alt={text('একাডেমি প্রতিনিধির ছবি', 'Academy representative seated at a desk')}/></div>
     </section>
-    {error && <div className="real-error real-error-public">{error}</div>}
+    {(error || publicLoadFailed) && <div className="real-error real-error-public">{error || text('পাবলিক তথ্য লোডে সমস্যা হয়েছে।', 'Some public information could not be loaded.')}</div>}
     <section className="real-public-section" id="about"><div className="real-section-heading"><span>{text('আমাদের পরিচিতি', 'About the academy')}</span><h2>{text('জ্ঞান ও সুন্দর চরিত্র গঠনে একসাথে', 'Learning for knowledge and character')}</h2></div><article className="real-info-card"><p>{about}</p></article></section>
     <section className="real-public-section" id="classes"><div className="real-section-heading"><span>{text('একাডেমির ক্লাস', 'Academy classes')}</span><h2>{text('প্রকাশিত কোর্স ও ক্লাস', 'Published courses and classes')}</h2></div><div className="real-cards">{visibleClasses.length ? visibleClasses.map(item => <article key={item.id}><b>{en ? item.name_en : item.name}</b><span>{en ? item.subject_en : item.subject}{(en ? item.level_en : item.level) ? ` · ${en ? item.level_en : item.level}` : ''}</span>{(en ? item.description_en : item.description) && <p>{en ? item.description_en : item.description}</p>}</article>) : <div className="real-empty">{text(publicClasses.length ? 'ক্লাসের ইংরেজি তথ্য প্রস্তুত করা হচ্ছে।' : 'এখনো কোনো ক্লাস প্রকাশ করা হয়নি।', publicClasses.length ? 'English class details are being prepared.' : 'No classes have been published yet.')}</div>}</div></section>
     <section className="real-public-section real-tint" id="approach"><div className="real-section-heading"><span>{text('শেখার পদ্ধতি', 'Learning approach')}</span><h2>{text('মনোযোগী ও ধারাবাহিক পাঠদান', 'Clear and consistent teaching')}</h2></div><article className="real-info-card"><p>{methodology}</p></article></section>
