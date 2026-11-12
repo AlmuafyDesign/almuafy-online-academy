@@ -313,7 +313,9 @@ function ModuleManager({ active, profile, query }: { active: string; profile: Ac
       if (!supabase) { setError('Supabase সংযোগ সেট করা নেই।'); setLoading(false); return }
       setLoading(true); setError('')
       const orderColumn = ({ class_enrollments: 'enrolled_at', attendance: 'recorded_at', homework_submissions: 'submitted_at' } as Record<string, string>)[config.table] ?? 'created_at'
-      const { data, error: loadError } = await supabase.from(config.table).select('*').order(orderColumn, { ascending: false }).limit(100)
+      const profileQuery = supabase.from(config.table).select('*')
+      const scopedQuery = config.table === 'profiles' ? profileQuery.eq('role', 'student') : profileQuery
+      const { data, error: loadError } = await scopedQuery.order(orderColumn, { ascending: false }).limit(100)
       if (!live) return
       if (loadError) setError('তথ্য লোড হয়নি। ডেটাবেজ সংযোগ ও অনুমতি যাচাই করুন।')
       setRows(data ?? [])
