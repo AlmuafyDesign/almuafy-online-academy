@@ -24,3 +24,8 @@ npm run build
 - পরিসংখ্যান ও কার্যক্রম demo data।
 - লগইন, Supabase, API বা role-based authorization এখনো যুক্ত নয়।
 - Web app manifest ও academy icon আছে; offline service worker এখনো নেই।
+- বাংলা UI-তে Bornomala Regular/Bold ব্যবহার করা হয়েছে; font files are licensed under the SIL Open Font License.
+
+## Font attribution
+
+Bornomala was designed by Jayed Ahsan Saad. Font files are sourced from [Bangla Web Fonts](https://banglawebfonts.pages.dev/font/bornomala/) and redistributed under the [SIL Open Font License](https://openfontlicense.org/).
