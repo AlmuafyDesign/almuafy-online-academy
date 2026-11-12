@@ -399,12 +399,26 @@ function ModuleManager({ active, profile, query }: { active: string; profile: Ac
     if (!editing && config.table === 'attendance') payload.recorded_by = profile.id
     if (config.table === 'notices' && payload.status === 'published') payload.published_at = editing?.published_at || new Date().toISOString()
     if (['classes', 'class_sessions', 'daily_lessons', 'homework', 'library_resources', 'notices'].includes(config.table)) payload.updated_at = new Date().toISOString()
-    const result = editing ? await supabase.from(config.table).update(payload).eq('id', editing.id) : await supabase.from(config.table).insert(payload)
+    let result = editing ? await supabase.from(config.table).update(payload).eq('id', editing.id) : await supabase.from(config.table).insert(payload)
+    let savedWithoutEnglishFields = false
+    const missingLibraryTranslations = config.table === 'library_resources' && result.error &&
+      (result.error.code === 'PGRST204' || /title_en|description_en|schema cache/i.test(result.error.message))
+    if (missingLibraryTranslations) {
+      const compatiblePayload = { ...payload }
+      delete compatiblePayload.title_en
+      delete compatiblePayload.description_en
+      result = editing
+        ? await supabase.from(config.table).update(compatiblePayload).eq('id', editing.id)
+        : await supabase.from(config.table).insert(compatiblePayload)
+      savedWithoutEnglishFields = !result.error
+    }
     setSaving(false)
-    if (result.error) { setError('সংরক্ষণ হয়নি। আবশ্যক তথ্য, সংযোগ এবং অ্যাডমিন অনুমতি যাচাই করুন।'); return }
+    if (result.error) { setError(`সংরক্ষণ হয়নি: ${result.error.message}`); return }
     const entityId = editing?.id ?? null
     void supabase.from('activity_logs').insert({ actor_id: profile.id, action: editing ? 'পরিবর্তন' : 'নতুন রেকর্ড', entity_type: config.table, entity_id: entityId ?? null, details: { label: active } })
-    setMessage(editing ? 'পরিবর্তন সংরক্ষিত হয়েছে।' : 'নতুন রেকর্ড যোগ হয়েছে.')
+    setMessage(savedWithoutEnglishFields
+      ? 'বই ও লিংক সংরক্ষিত হয়েছে। English title/description-এর জন্য Supabase-এ 20261112050000 migration চালান।'
+      : editing ? 'পরিবর্তন সংরক্ষিত হয়েছে।' : 'নতুন রেকর্ড যোগ হয়েছে.')
     setEditing(null); setForm({}); setFormOpen(false); setReload(count => count + 1)
   }
   const visibleRows = rows.filter(row => JSON.stringify(row).toLowerCase().includes(query.toLowerCase()))
