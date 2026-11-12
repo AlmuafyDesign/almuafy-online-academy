@@ -15,7 +15,6 @@ self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)))
   self.skipWaiting()
 })
-
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))
@@ -43,36 +42,4 @@ self.addEventListener('fetch', event => {
       return response
     })))
   }
-})
-
-self.addEventListener('push', event => {
-  let message = {}
-  try { message = event.data?.json() ?? {} } catch { message = { body: event.data?.text() ?? '' } }
-  const title = message.title || 'Almuafy Academy'
-  const options = {
-    body: message.body || 'You have an incoming academy call.',
-    icon: message.icon || `${APP_BASE}icons/icon-192.png`,
-    badge: `${APP_BASE}icons/icon-192.png`,
-    tag: message.tag || 'academy-incoming-call',
-    renotify: true,
-    data: { url: message.data?.url || APP_BASE },
-  }
-  event.waitUntil((async () => {
-    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-    if (windows.some(client => client.visibilityState === 'visible')) return
-    return self.registration.showNotification(title, options)
-  })())
-})
-
-self.addEventListener('notificationclick', event => {
-  event.notification.close()
-  const targetUrl = new URL(event.notification.data?.url || APP_BASE, self.location.origin).href
-  event.waitUntil((async () => {
-    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-    for (const client of windows) {
-      if ('navigate' in client) await client.navigate(targetUrl)
-      if ('focus' in client) return client.focus()
-    }
-    return self.clients.openWindow(targetUrl)
-  })())
 })
