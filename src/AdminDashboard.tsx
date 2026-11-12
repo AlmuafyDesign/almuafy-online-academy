@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AcademyProfile } from './services/supabase'
 import { supabase } from './services/supabase'
-import { readTabMemory, writeTabMemory } from './tab-memory'
+import { clearTabMemory, readTabMemory, writeTabMemory } from './tab-memory'
 
 type IconName = 'grid' | 'users' | 'book' | 'calendar' | 'check' | 'layers' | 'bell' | 'settings' | 'search' | 'menu' | 'logout' | 'arrow' | 'clock' | 'plus' | 'chart'
 const paths: Record<IconName, React.ReactNode> = {
@@ -321,16 +321,32 @@ function inputDate(value: unknown, dateOnly = false) {
 }
 function ModuleManager({ active, profile, query }: { active: string; profile: AcademyProfile; query: string }) {
   const config = moduleConfigs[active]
+  const libraryDraftKey = `almuafy-library-draft:${profile.id}`
+  const savedLibraryDraft = config.table === 'library_resources'
+    ? readTabMemory<{ form: Record<string, string | boolean>; formOpen: boolean; editingId: string | null }>(libraryDraftKey, { form: {}, formOpen: false, editingId: null })
+    : { form: {}, formOpen: false, editingId: null }
   const [rows, setRows] = useState<Record<string, any>[]>([])
   const [references, setReferences] = useState<Record<string, { value: string; label: string }[]>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [formOpen, setFormOpen] = useState(false)
+  const [formOpen, setFormOpen] = useState(savedLibraryDraft.formOpen)
   const [editing, setEditing] = useState<Record<string, any> | null>(null)
-  const [form, setForm] = useState<Record<string, string | boolean>>({})
+  const [pendingEditingId, setPendingEditingId] = useState<string | null>(savedLibraryDraft.editingId)
+  const [form, setForm] = useState<Record<string, string | boolean>>(savedLibraryDraft.form)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [reload, setReload] = useState(0)
+  useEffect(() => {
+    if (config.table !== 'library_resources' || !pendingEditingId || loading) return
+    setEditing(rows.find(row => row.id === pendingEditingId) ?? null)
+    setPendingEditingId(null)
+  }, [config.table, loading, pendingEditingId, rows])
+  useEffect(() => {
+    if (config.table !== 'library_resources') return
+    if (formOpen || Object.keys(form).length || editing || pendingEditingId) {
+      writeTabMemory(libraryDraftKey, { form, formOpen, editingId: editing?.id ?? pendingEditingId })
+    } else clearTabMemory(libraryDraftKey)
+  }, [config.table, editing, form, formOpen, libraryDraftKey, pendingEditingId])
   useEffect(() => {
     let live = true
     async function load() {
@@ -387,8 +403,9 @@ function ModuleManager({ active, profile, query }: { active: string; profile: Ac
       if (field.type === 'date') value = inputDate(value, true)
       next[field.key] = field.type === 'checkbox' ? Boolean(value) : String(value ?? '')
     }
-    setEditing(row ?? null); setForm(next); setFormOpen(true); setError(''); setMessage('')
+    setEditing(row ?? null); setPendingEditingId(row?.id ?? null); setForm(next); setFormOpen(true); setError(''); setMessage('')
   }
+  function closeForm() { setEditing(null); setPendingEditingId(null); setForm({}); setFormOpen(false); clearTabMemory(libraryDraftKey) }
   function setValue(key: string, value: string | boolean) { setForm(current => ({ ...current, [key]: value })) }
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!supabase) return
@@ -434,7 +451,7 @@ function ModuleManager({ active, profile, query }: { active: string; profile: Ac
   return <section className="premium-module"><div className="premium-section-title"><div><div className="premium-date"><span/> একাডেমি পরিচালনা</div><h2>{active}</h2><p>রেকর্ড যোগ করুন, পরিবর্তন করুন ও প্রকাশনার অবস্থা নিয়ন্ত্রণ করুন।</p></div><span className="live-pill"><i/> লাইভ ডেটা</span></div>
     {error && <div className="premium-alert" role="status">{error}</div>}{message && <div className="advanced-feedback" role="status">{message}</div>}
     <article className="premium-panel manager-panel"><div className="manager-toolbar"><div className="module-summary"><span className="panel-symbol teal"><Icon name={navGroups.flatMap(group => group.items).find(item => item.label === active)?.icon ?? 'grid'} size={18}/></span><div><b>{active} পরিচালনা</b><small>{loading ? 'তথ্য পড়া হচ্ছে…' : `${bnNumber(visibleRows.length)}টি রেকর্ড`}</small></div></div>{config.create !== false && <button className="premium-add manager-add" onClick={() => begin()}><Icon name="plus" size={16}/> নতুন যোগ করুন</button>}</div>
-      {formOpen && <form className="manager-form" onSubmit={save}><div className="manager-form-head"><h3>{editing ? 'রেকর্ড পরিবর্তন' : 'নতুন রেকর্ড'}</h3><button type="button" onClick={() => { setEditing(null); setForm({}); setFormOpen(false) }}>বন্ধ করুন</button></div><div className="manager-fields">{config.fields.map(field => <label className={`advanced-field ${field.type === 'checkbox' ? 'manager-checkbox' : ''}`} key={field.key}><span>{field.label}</span>{field.type === 'textarea' ? <textarea required={field.required} value={String(form[field.key] ?? '')} onChange={event => setValue(field.key, event.target.value)} rows={3}/> : field.type === 'select' ? <select required={field.required} value={String(form[field.key] ?? '')} onChange={event => setValue(field.key, event.target.value)}><option value="">নির্বাচন করুন</option>{labelFor(field).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : field.type === 'checkbox' ? <input type="checkbox" checked={Boolean(form[field.key])} onChange={event => setValue(field.key, event.target.checked)}/> : <input type={field.type ?? 'text'} required={field.required} min={field.type === 'number' ? 1 : undefined} max={field.key === 'duration_minutes' ? 600 : undefined} value={String(form[field.key] ?? '')} onChange={event => setValue(field.key, event.target.value)} />}{field.hint && <small>{field.hint}</small>}</label>)}</div><div className="manager-form-actions"><button type="button" className="manager-cancel" onClick={() => { setEditing(null); setForm({}); setFormOpen(false) }}>বাতিল</button><button className="premium-add" type="submit" disabled={saving}>{saving ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ করুন'}</button></div></form>}
+      {formOpen && <form className="manager-form" onSubmit={save}><div className="manager-form-head"><h3>{editing ? 'রেকর্ড পরিবর্তন' : 'নতুন রেকর্ড'}</h3><button type="button" onClick={closeForm}>বন্ধ করুন</button></div><div className="manager-fields">{config.fields.map(field => <label className={`advanced-field ${field.type === 'checkbox' ? 'manager-checkbox' : ''}`} key={field.key}><span>{field.label}</span>{field.type === 'textarea' ? <textarea required={field.required} value={String(form[field.key] ?? '')} onChange={event => setValue(field.key, event.target.value)} rows={3}/> : field.type === 'select' ? <select required={field.required} value={String(form[field.key] ?? '')} onChange={event => setValue(field.key, event.target.value)}><option value="">নির্বাচন করুন</option>{labelFor(field).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : field.type === 'checkbox' ? <input type="checkbox" checked={Boolean(form[field.key])} onChange={event => setValue(field.key, event.target.checked)}/> : <input type={field.type ?? 'text'} required={field.required} min={field.type === 'number' ? 1 : undefined} max={field.key === 'duration_minutes' ? 600 : undefined} value={String(form[field.key] ?? '')} onChange={event => setValue(field.key, event.target.value)} />}{field.hint && <small>{field.hint}</small>}</label>)}</div><div className="manager-form-actions"><button type="button" className="manager-cancel" onClick={closeForm}>বাতিল</button><button className="premium-add" type="submit" disabled={saving}>{saving ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ করুন'}</button></div></form>}
       {loading ? <Empty label="তথ্য লোড হচ্ছে…"/> : visibleRows.length ? <div className="manager-list">{visibleRows.map(row => <div className="manager-row" key={row.id}><div><b>{config.titleKeys.map(key => row[key] ? displayValue(key, row[key]) : '').find(Boolean) || row.id}</b><small>{config.detailKeys.map(key => { const value = row[key]; if (value == null || value === '') return null; return `${managerTitles[key] ?? key}: ${key.endsWith('_at') || key === 'lesson_date' ? inputDate(value, key === 'lesson_date') : displayValue(key, value)}` }).filter(Boolean).join(' · ')}</small></div>{config.editable !== false && <button onClick={() => begin(row)}>পরিবর্তন</button>}</div>)}</div> : <Empty label={query ? 'এই অনুসন্ধানে কোনো রেকর্ড নেই।' : `এখনো ${active} রেকর্ড নেই।`} />}</article>
   </section>
 }
