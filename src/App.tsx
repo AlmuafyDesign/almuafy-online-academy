@@ -102,12 +102,16 @@ function App() {
       </div>
     </header>
     <section className="real-hero" id="top">
-      <span className="real-kicker">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</span>
-      <h1>{text('ইলমে সমৃদ্ধ হই, প্রজ্ঞায় বেড়ে উঠি', 'Learn with Knowledge, Grow with Wisdom')}</h1>
-      <p>{homeDescription}</p>
-      <button className="primary-button" onClick={() => setAuthMode('student-register')}>{text('এখনই নিবন্ধন করুন', 'Join the academy')}</button>
-      <a className="real-explore" href="#about">{text('একাডেমি সম্পর্কে জানুন', 'Explore the academy')} ↓</a>
-      <div className="real-arch"><img src={`${import.meta.env.BASE_URL}images/my-own-logo.png`} alt=""/></div>
+      <div className="real-hero-copy">
+        <span className="real-kicker">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</span>
+        <h1>{text('ইলমে সমৃদ্ধ হই, প্রজ্ঞায় বেড়ে উঠি', 'Learn with Knowledge, Grow with Wisdom')}</h1>
+        <p>{homeDescription}</p>
+        <div className="real-hero-actions">
+          <button className="primary-button" onClick={() => setAuthMode('student-register')}>{text('এখনই নিবন্ধন করুন', 'Join the academy')}</button>
+          <a className="real-explore" href="#about">{text('একাডেমি সম্পর্কে জানুন', 'Explore the academy')} ↓</a>
+        </div>
+      </div>
+      <div className="real-hero-photo"><img src={`${import.meta.env.BASE_URL}images/academy-founder.jpg`} alt="Academy representative seated at a desk"/></div>
     </section>
     {error && <div className="real-error real-error-public">{error}</div>}
     <section className="real-public-section" id="about"><div className="real-section-heading"><span>{text('আমাদের পরিচিতি', 'About the academy')}</span><h2>{text('জ্ঞান ও সুন্দর চরিত্র গঠনে একসাথে', 'Learning for knowledge and character')}</h2></div><article className="real-info-card"><p>{about}</p></article></section>
