@@ -50,7 +50,7 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
   const activeCallRef = useRef<CallInfo | null>(null)
   const incomingRef = useRef<CallRow | null>(null)
-  const queuedIceRef = useRef<RTCIceCandidateInit[]>([])
+  const queuedIceRef = useRef<(RTCIceCandidateInit | null)[]>([])
   const offerStartedRef = useRef(false)
   const connectedAtRef = useRef<number | null>(null)
   const dragRef = useRef<{ pointerId: number; dx: number; dy: number } | null>(null)
@@ -151,24 +151,25 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
       } else if (payload.kind === 'answer' && payload.description) {
         await peer.setRemoteDescription(payload.description as RTCSessionDescriptionInit)
         for (const candidate of queuedIceRef.current.splice(0)) await peer.addIceCandidate(candidate)
-      } else if (payload.kind === 'ice' && payload.candidate) {
-        if (peer.remoteDescription) await peer.addIceCandidate(payload.candidate as RTCIceCandidateInit)
-        else queuedIceRef.current.push(payload.candidate as RTCIceCandidateInit)
+      } else if (payload.kind === 'ice') {
+        const candidate = payload.candidate as RTCIceCandidateInit | null
+        if (peer.remoteDescription) await peer.addIceCandidate(candidate)
+        else queuedIceRef.current.push(candidate)
       }
     } catch {
       setCallStatus('failed')
     }
   }, [sendSignal])
 
-  const createPeer = useCallback((stream: MediaStream) => {
+  const createPeer = useCallback((stream: MediaStream, mode: 'audio' | 'video') => {
     peerRef.current?.close()
-    const peer = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+    const peer = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceCandidatePoolSize: 4 })
     peerRef.current = peer
     stream.getTracks().forEach(track => peer.addTrack(track, stream))
+    if (!stream.getAudioTracks().length) peer.addTransceiver('audio', { direction: 'recvonly' })
+    if (mode === 'video' && !stream.getVideoTracks().length) peer.addTransceiver('video', { direction: 'recvonly' })
     peer.ontrack = event => { setRemoteStream(event.streams[0] ?? new MediaStream([event.track])); setCallStatus('connecting') }
-    peer.onicecandidate = event => {
-      if (event.candidate) void sendSignal('call_signal', { kind: 'ice', candidate: event.candidate.toJSON() })
-    }
+    peer.onicecandidate = event => { void sendSignal('call_signal', { kind: 'ice', candidate: event.candidate?.toJSON() ?? null }) }
     peer.onconnectionstatechange = () => {
       if (peer.connectionState === 'connected') setCallStatus('connected')
       else if (peer.connectionState === 'disconnected') setCallStatus('reconnecting')
@@ -178,11 +179,23 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
 
   const requestMedia = useCallback(async (mode: 'audio' | 'video') => {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error(localText('এই browser-এ audio/video call সমর্থিত নয়। HTTPS-এ খুলুন।', 'Audio/video calling is unavailable in this browser. Open the secure HTTPS site.'))
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: mode === 'video' ? { facingMode: 'user' } : false })
+    let stream: MediaStream
+    let cameraUnavailable = false
+    if (mode === 'video') {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: 'user' } })
+      } catch (error) {
+        const noCamera = error instanceof DOMException && (error.name === 'NotFoundError' || error.name === 'OverconstrainedError')
+        if (!noCamera) throw error
+        cameraUnavailable = true
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      }
+    } else stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
     localStreamRef.current = stream
     setLocalStream(stream)
     setMicEnabled(stream.getAudioTracks().some(track => track.enabled))
     setCameraEnabled(stream.getVideoTracks().some(track => track.enabled))
+    if (cameraUnavailable) setNotice(localText('আপনার device-এ camera নেই। আপনি audio-তে কথা বলতে পারবেন, অপর পক্ষের video দেখতে পারবেন।', 'No camera was found on your device. You can speak by audio and still see the other person.'))
     return stream
   }, [localText])
 
@@ -304,7 +317,7 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
         })(),
       ])
       void signalChannel
-      createPeer(stream)
+      createPeer(stream, mode)
       const sent = await targetAlert.send({ type: 'broadcast', event: 'incoming_call', payload: { callId } })
       void supabase.removeChannel(targetAlert)
       if (sent !== 'ok') throw new Error(localText('কলের অনুরোধ পাঠানো যায়নি। আবার চেষ্টা করুন।', 'The call invitation could not be sent. Please try again.'))
@@ -326,7 +339,7 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
       stream = await requestMedia(invite.media_mode)
       const info: CallInfo = { id: invite.id, peerId: invite.caller_id, peerName: callerName, mode: invite.media_mode, direction: 'incoming' }
       const channel = await joinSignalChannel(invite.id)
-      createPeer(stream)
+      createPeer(stream, invite.media_mode)
       const { data: accepted, error } = await supabase.rpc('respond_to_academy_video_call', { p_call_id: invite.id, p_accept: true })
       if (error || !accepted) throw new Error(localText('এই কলটি আর চালু নেই।', 'This call is no longer available.'))
       activeCallRef.current = info; setActiveCall(info); setCallStatus('connecting'); setIncoming(null); setMinimized(false)
@@ -442,16 +455,17 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
       <div className={`academy-call-body ${minimized ? 'is-hidden' : ''}`}>
         <div className="academy-call-stage">
           {activeCall.mode === 'video' ? <>
-            <video className="academy-remote-video" ref={remoteVideoRef} autoPlay playsInline/>
+            <video className="academy-remote-video" ref={remoteVideoRef} autoPlay playsInline muted/>
             {!remoteStream && <div className="academy-call-placeholder"><span>{Array.from(activeCall.peerName)[0] || 'A'}</span><b>{activeCall.peerName}</b><small>{callStatus === 'failed' ? localText('অন্য device বা network দিয়ে চেষ্টা করুন।', 'Try another device or network.') : localText('অন্যজনের camera যুক্ত হওয়ার অপেক্ষায়…', 'Waiting for the other camera…')}</small></div>}
             <video className="academy-local-video" ref={localVideoRef} autoPlay playsInline muted/>
-            {!cameraEnabled && <div className="academy-camera-off">{localText('আপনার camera বন্ধ', 'Your camera is off')}</div>}
+            {!localStream?.getVideoTracks().length && <div className="academy-camera-off">{localText('আপনার device-এ camera নেই — audio call চলবে, অপর পক্ষের video দেখতে পারবেন', 'No camera on your device — audio will work, and you can still see the other person')}</div>}
           </> : <div className="academy-audio-stage"><audio ref={remoteAudioRef} autoPlay/><span>{Array.from(activeCall.peerName)[0] || 'A'}</span><h2>{activeCall.peerName}</h2><small>{statusText}</small></div>}
+          {activeCall.mode === 'video' && <audio ref={remoteAudioRef} autoPlay/>}
           <div className="academy-call-quality" aria-live="polite"><i className={callStatus === 'connected' ? 'connected' : ''}/>{statusText}</div>
         </div>
         <div className="academy-call-controls">
           <button className={!micEnabled ? 'muted' : ''} onClick={toggleMic} title={micEnabled ? localText('মাইক বন্ধ করুন', 'Mute microphone') : localText('মাইক চালু করুন', 'Unmute microphone')} aria-label={micEnabled ? localText('মাইক বন্ধ করুন', 'Mute microphone') : localText('মাইক চালু করুন', 'Unmute microphone')}><span>{micEnabled ? '♬' : '×'}</span><small>{micEnabled ? localText('মাইক', 'Mic') : localText('বন্ধ', 'Muted')}</small></button>
-          {activeCall.mode === 'video' && <button className={!cameraEnabled ? 'muted' : ''} onClick={toggleCamera} title={cameraEnabled ? localText('Camera বন্ধ করুন', 'Turn camera off') : localText('Camera চালু করুন', 'Turn camera on')} aria-label={cameraEnabled ? localText('Camera বন্ধ করুন', 'Turn camera off') : localText('Camera চালু করুন', 'Turn camera on')}><span>{cameraEnabled ? '▣' : '×'}</span><small>{cameraEnabled ? localText('Camera', 'Camera') : localText('বন্ধ', 'Off')}</small></button>}
+          {activeCall.mode === 'video' && localStream?.getVideoTracks().length ? <button className={!cameraEnabled ? 'muted' : ''} onClick={toggleCamera} title={cameraEnabled ? localText('Camera বন্ধ করুন', 'Turn camera off') : localText('Camera চালু করুন', 'Turn camera on')} aria-label={cameraEnabled ? localText('Camera বন্ধ করুন', 'Turn camera off') : localText('Camera চালু করুন', 'Turn camera on')}><span>{cameraEnabled ? '▣' : '×'}</span><small>{cameraEnabled ? localText('Camera', 'Camera') : localText('বন্ধ', 'Off')}</small></button> : null}
           <button className="academy-hangup" onClick={() => void hangup()} title={localText('কল শেষ করুন', 'End call')} aria-label={localText('কল শেষ করুন', 'End call')}>☎</button>
         </div>
       </div>
