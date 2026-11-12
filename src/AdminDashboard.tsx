@@ -288,8 +288,8 @@ const moduleConfigs: Record<string, ManagerConfig> = {
     { key: 'name', label: 'বিভাগের নাম', required: true }, { key: 'slug', label: 'লিংক নাম (ইংরেজি)', required: true }, { key: 'sort_order', label: 'ক্রম', type: 'number' },
   ] },
   'লাইব্রেরি': { table: 'library_resources', titleKeys: ['title'], detailKeys: ['resource_url', 'status'], fields: [
-    { key: 'category_id', label: 'বিভাগ (ঐচ্ছিক)', type: 'select' }, { key: 'title', label: 'উপকরণের নাম · বাংলা', required: true }, { key: 'title_en', label: 'Resource title · English' }, { key: 'resource_url', label: 'লিংক', type: 'url', required: true },
-    { key: 'description', label: 'বিবরণ · বাংলা', type: 'textarea' }, { key: 'description_en', label: 'Description · English', type: 'textarea' }, { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['draft', 'published', 'archived']) },
+    { key: 'title', label: 'নাম', required: true }, { key: 'resource_url', label: 'লিংক', type: 'url', required: true },
+    { key: 'description', label: 'বিবরণ', type: 'textarea' },
   ] },
   'নোটিশ': { table: 'notices', titleKeys: ['title'], detailKeys: ['visibility', 'priority', 'status'], fields: [
     { key: 'title', label: 'নোটিশের শিরোনাম · বাংলা', required: true }, { key: 'title_en', label: 'Notice title · English' }, { key: 'description', label: 'নোটিশের লেখা · বাংলা', type: 'textarea', required: true }, { key: 'description_en', label: 'Notice text · English', type: 'textarea' },
@@ -398,6 +398,7 @@ function ModuleManager({ active, profile, query }: { active: string; profile: Ac
     if (!editing && ['classes', 'class_sessions', 'daily_lessons', 'homework', 'library_resources', 'notices'].includes(config.table)) payload.created_by = profile.id
     if (!editing && config.table === 'attendance') payload.recorded_by = profile.id
     if (config.table === 'notices' && payload.status === 'published') payload.published_at = editing?.published_at || new Date().toISOString()
+    if (config.table === 'library_resources') payload.status = editing ? editing.status : 'published'
     if (['classes', 'class_sessions', 'daily_lessons', 'homework', 'library_resources', 'notices'].includes(config.table)) payload.updated_at = new Date().toISOString()
     let result = editing ? await supabase.from(config.table).update(payload).eq('id', editing.id) : await supabase.from(config.table).insert(payload)
     let savedWithoutEnglishFields = false
