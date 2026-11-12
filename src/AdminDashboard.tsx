@@ -261,25 +261,25 @@ function Reports({ profile }: { profile: AcademyProfile }) {
 }
 
 type ManagerField = { key: string; label: string; type?: 'text' | 'email' | 'tel' | 'url' | 'textarea' | 'date' | 'datetime-local' | 'number' | 'select' | 'checkbox'; required?: boolean; options?: { value: string; label: string }[]; hint?: string }
-type ManagerConfig = { table: string; titleKeys: string[]; detailKeys: string[]; fields: ManagerField[]; create?: boolean; editable?: boolean }
+type ManagerConfig = { table: string; titleKeys: string[]; detailKeys: string[]; fields: ManagerField[]; create?: boolean; editable?: boolean; retireStatus?: string; retireLabel?: string }
 const statusOptions = (values: string[]) => values.map(value => ({ value, label: ({ active: 'সক্রিয়', inactive: 'নিষ্ক্রিয়', archived: 'আর্কাইভ', draft: 'খসড়া', published: 'প্রকাশিত', scheduled: 'নির্ধারিত', live: 'চলমান', completed: 'সম্পন্ন', cancelled: 'বাতিল', present: 'উপস্থিত', absent: 'অনুপস্থিত', late: 'দেরি', pending: 'অপেক্ষমাণ' } as Record<string, string>)[value] ?? value }))
 const moduleConfigs: Record<string, ManagerConfig> = {
-  'শিক্ষার্থী': { table: 'profiles', create: false, titleKeys: ['full_name', 'email'], detailKeys: ['phone', 'status'], fields: [
+  'শিক্ষার্থী': { table: 'profiles', create: false, retireStatus: 'inactive', retireLabel: 'নিষ্ক্রিয় করুন', titleKeys: ['full_name', 'email'], detailKeys: ['phone', 'status'], fields: [
     { key: 'full_name', label: 'পূর্ণ নাম', required: true }, { key: 'phone', label: 'ফোন', type: 'tel' },
     { key: 'status', label: 'অ্যাকাউন্ট অবস্থা', type: 'select', options: statusOptions(['active', 'pending', 'inactive', 'blocked']), required: true },
   ] },
-  'ভর্তি ব্যবস্থাপনা': { table: 'class_enrollments', titleKeys: ['student_id'], detailKeys: ['class_id', 'status'], fields: [
+  'ভর্তি ব্যবস্থাপনা': { table: 'class_enrollments', retireStatus: 'inactive', retireLabel: 'ভর্তি নিষ্ক্রিয় করুন', titleKeys: ['student_id'], detailKeys: ['class_id', 'status'], fields: [
     { key: 'class_id', label: 'ক্লাস নির্বাচন', type: 'select', required: true }, { key: 'student_id', label: 'শিক্ষার্থী নির্বাচন', type: 'select', required: true },
     { key: 'status', label: 'ভর্তির অবস্থা', type: 'select', required: true, options: statusOptions(['pending', 'active', 'inactive']) },
   ] },
-  'ক্লাস ও পাঠ': { table: 'classes', titleKeys: ['name'], detailKeys: ['subject', 'level', 'status'], fields: [
+  'ক্লাস ও পাঠ': { table: 'classes', retireStatus: 'archived', titleKeys: ['name'], detailKeys: ['subject', 'level', 'status'], fields: [
     { key: 'name', label: 'ক্লাসের নাম · বাংলা', required: true }, { key: 'name_en', label: 'Class name · English' },
     { key: 'subject', label: 'বিষয় · বাংলা', required: true }, { key: 'subject_en', label: 'Subject · English' },
     { key: 'level', label: 'শ্রেণি বা স্তর · বাংলা' }, { key: 'level_en', label: 'Level · English' },
     { key: 'description', label: 'বর্ণনা · বাংলা', type: 'textarea' }, { key: 'description_en', label: 'Description · English', type: 'textarea' }, { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['active', 'inactive', 'archived']) },
     { key: 'public_visible', label: 'পাবলিক সাইটে দেখান', type: 'checkbox' },
   ] },
-  'সময়সূচি': { table: 'class_sessions', titleKeys: ['title'], detailKeys: ['starts_at', 'status'], fields: [
+  'সময়সূচি': { table: 'class_sessions', retireStatus: 'cancelled', retireLabel: 'সেশন বাতিল করুন', titleKeys: ['title'], detailKeys: ['starts_at', 'status'], fields: [
     { key: 'class_id', label: 'ক্লাস নির্বাচন', type: 'select', required: true }, { key: 'title', label: 'সেশনের শিরোনাম', required: true },
     { key: 'starts_at', label: 'শুরুর সময়', type: 'datetime-local', required: true }, { key: 'duration_minutes', label: 'সময় (মিনিট)', type: 'number', required: true },
     { key: 'meeting_url', label: 'ক্লাস লিংক', type: 'url', hint: 'এখনকার বাহ্যিক মিটিং লিংক; ইন-অ্যাপ ভিডিও কল পরে যুক্ত হবে।' },
@@ -289,7 +289,7 @@ const moduleConfigs: Record<string, ManagerConfig> = {
     { key: 'session_id', label: 'ক্লাস সেশন', type: 'select', required: true }, { key: 'student_id', label: 'শিক্ষার্থী', type: 'select', required: true },
     { key: 'status', label: 'উপস্থিতির অবস্থা', type: 'select', required: true, options: statusOptions(['present', 'absent', 'late']) }, { key: 'note', label: 'মন্তব্য', type: 'textarea' },
   ] },
-  'দৈনিক পাঠ': { table: 'daily_lessons', titleKeys: ['title'], detailKeys: ['subject', 'lesson_date', 'status'], fields: [
+  'দৈনিক পাঠ': { table: 'daily_lessons', retireStatus: 'archived', titleKeys: ['title'], detailKeys: ['subject', 'lesson_date', 'status'], fields: [
     { key: 'class_id', label: 'ক্লাস নির্বাচন', type: 'select', required: true }, { key: 'title', label: 'পাঠের শিরোনাম', required: true }, { key: 'subject', label: 'বিষয়', required: true },
     { key: 'description', label: 'পাঠের বিবরণ', type: 'textarea' }, { key: 'lesson_date', label: 'পাঠের তারিখ', type: 'date', required: true },
     { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['draft', 'published', 'archived']) },
@@ -297,7 +297,7 @@ const moduleConfigs: Record<string, ManagerConfig> = {
   'পাঠের উপকরণ': { table: 'lesson_links', titleKeys: ['label'], detailKeys: ['lesson_id', 'url'], fields: [
     { key: 'lesson_id', label: 'প্রকাশিত পাঠ নির্বাচন', type: 'select', required: true }, { key: 'label', label: 'লিংকের নাম', required: true }, { key: 'url', label: 'বাহ্যিক লিংক', type: 'url', required: true },
   ] },
-  'হোমওয়ার্ক': { table: 'homework', titleKeys: ['title'], detailKeys: ['due_at', 'status'], fields: [
+  'হোমওয়ার্ক': { table: 'homework', retireStatus: 'archived', titleKeys: ['title'], detailKeys: ['due_at', 'status'], fields: [
     { key: 'class_id', label: 'ক্লাস নির্বাচন', type: 'select', required: true }, { key: 'title', label: 'হোমওয়ার্কের শিরোনাম', required: true },
     { key: 'instructions', label: 'নির্দেশনা', type: 'textarea' }, { key: 'due_at', label: 'জমা দেওয়ার শেষ সময়', type: 'datetime-local' },
     { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['draft', 'published', 'closed', 'archived']) },
@@ -309,11 +309,11 @@ const moduleConfigs: Record<string, ManagerConfig> = {
   'লাইব্রেরি বিভাগ': { table: 'library_categories', titleKeys: ['name'], detailKeys: ['slug', 'sort_order'], fields: [
     { key: 'name', label: 'বিভাগের নাম', required: true }, { key: 'slug', label: 'লিংক নাম (ইংরেজি)', required: true }, { key: 'sort_order', label: 'ক্রম', type: 'number' },
   ] },
-  'লাইব্রেরি': { table: 'library_resources', titleKeys: ['title'], detailKeys: ['resource_url', 'status'], fields: [
+  'লাইব্রেরি': { table: 'library_resources', retireStatus: 'archived', titleKeys: ['title'], detailKeys: ['resource_url', 'status'], fields: [
     { key: 'title', label: 'নাম', required: true }, { key: 'resource_url', label: 'লিংক', type: 'url', required: true },
     { key: 'description', label: 'বিবরণ', type: 'textarea' },
   ] },
-  'নোটিশ': { table: 'notices', titleKeys: ['title'], detailKeys: ['visibility', 'priority', 'status'], fields: [
+  'নোটিশ': { table: 'notices', retireStatus: 'archived', titleKeys: ['title'], detailKeys: ['visibility', 'priority', 'status'], fields: [
     { key: 'title', label: 'নোটিশের শিরোনাম · বাংলা', required: true }, { key: 'title_en', label: 'Notice title · English' }, { key: 'description', label: 'নোটিশের লেখা · বাংলা', type: 'textarea', required: true }, { key: 'description_en', label: 'Notice text · English', type: 'textarea' },
     { key: 'visibility', label: 'কারা দেখবে', type: 'select', required: true, options: [{ value: 'public', label: 'সবার জন্য' }, { value: 'students', label: 'শুধু শিক্ষার্থী' }, { value: 'all_users', label: 'লগইন করা সবাই' }] },
     { key: 'priority', label: 'গুরুত্ব', type: 'select', required: true, options: [{ value: 'normal', label: 'সাধারণ' }, { value: 'important', label: 'জরুরি' }] },
@@ -423,6 +423,21 @@ function ModuleManager({ active, profile, query }: { active: string; profile: Ac
   }
   function closeForm() { setEditing(null); setPendingEditingId(null); setForm({}); setFormOpen(false); clearTabMemory(libraryDraftKey) }
   function setValue(key: string, value: string | boolean) { setForm(current => ({ ...current, [key]: value })) }
+  async function retire(row: Record<string, any>) {
+    if (!supabase || !config.retireStatus) return
+    const label = config.titleKeys.map(key => row[key] ? displayValue(key, row[key]) : '').find(Boolean) || row.id
+    const action = config.retireLabel ?? 'আর্কাইভ করুন'
+    if (!window.confirm(`“${label}” ${action}? রেকর্ডটি মুছে যাবে না; শুধু নিষ্ক্রিয়/আর্কাইভ হবে এবং পরে ফিরিয়ে আনা যাবে।`)) return
+    setSaving(true); setError(''); setMessage('')
+    const payload: Record<string, string> = { status: config.retireStatus }
+    if (config.table !== 'class_enrollments') payload.updated_at = new Date().toISOString()
+    const { error: retireError } = await supabase.from(config.table).update(payload).eq('id', row.id)
+    setSaving(false)
+    if (retireError) { setError(`পরিবর্তন করা যায়নি: ${retireError.message}`); return }
+    void supabase.from('activity_logs').insert({ actor_id: profile.id, action, entity_type: config.table, entity_id: row.id, details: { retained: true } })
+    setMessage('রেকর্ডটি মুছিনি—নিষ্ক্রিয়/আর্কাইভ করা হয়েছে। পরিবর্তন সংরক্ষিত হয়েছে।')
+    setReload(value => value + 1)
+  }
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!supabase) return
     setSaving(true); setError(''); setMessage('')
@@ -472,6 +487,6 @@ function ModuleManager({ active, profile, query }: { active: string; profile: Ac
     {error && <div className="premium-alert" role="status">{error}</div>}{message && <div className="advanced-feedback" role="status">{message}</div>}
     <article className="premium-panel manager-panel"><div className="manager-toolbar"><div className="module-summary"><span className="panel-symbol teal"><Icon name={navGroups.flatMap(group => group.items).find(item => item.label === active)?.icon ?? 'grid'} size={18}/></span><div><b>{active} পরিচালনা</b><small>{loading ? 'তথ্য পড়া হচ্ছে…' : `${bnNumber(visibleRows.length)}টি রেকর্ড`}</small></div></div>{config.create !== false && <button className="premium-add manager-add" onClick={() => begin()}><Icon name="plus" size={16}/> নতুন যোগ করুন</button>}</div>
       {formOpen && <form className="manager-form" onSubmit={save}><div className="manager-form-head"><h3>{editing ? 'রেকর্ড পরিবর্তন' : 'নতুন রেকর্ড'}</h3><button type="button" onClick={closeForm}>বন্ধ করুন</button></div><div className="manager-fields">{config.fields.map(field => <label className={`advanced-field ${field.type === 'checkbox' ? 'manager-checkbox' : ''}`} key={field.key}><span>{field.label}</span>{field.type === 'textarea' ? <textarea required={field.required} value={String(form[field.key] ?? '')} onChange={event => setValue(field.key, event.target.value)} rows={3}/> : field.type === 'select' ? <select required={field.required} value={String(form[field.key] ?? '')} onChange={event => setValue(field.key, event.target.value)}><option value="">নির্বাচন করুন</option>{labelFor(field).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : field.type === 'checkbox' ? <input type="checkbox" checked={Boolean(form[field.key])} onChange={event => setValue(field.key, event.target.checked)}/> : <input type={field.type ?? 'text'} required={field.required} min={field.type === 'number' ? 1 : undefined} max={field.key === 'duration_minutes' ? 600 : undefined} value={String(form[field.key] ?? '')} onChange={event => setValue(field.key, event.target.value)} />}{field.hint && <small>{field.hint}</small>}</label>)}</div><div className="manager-form-actions"><button type="button" className="manager-cancel" onClick={closeForm}>বাতিল</button><button className="premium-add" type="submit" disabled={saving}>{saving ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ করুন'}</button></div></form>}
-      {loading ? <Empty label="তথ্য লোড হচ্ছে…"/> : visibleRows.length ? <div className="manager-list">{visibleRows.map(row => <div className="manager-row" key={row.id}><div><b>{config.titleKeys.map(key => row[key] ? displayValue(key, row[key]) : '').find(Boolean) || row.id}</b><small>{config.detailKeys.map(key => { const value = row[key]; if (value == null || value === '') return null; return `${managerTitles[key] ?? key}: ${key.endsWith('_at') || key === 'lesson_date' ? inputDate(value, key === 'lesson_date') : displayValue(key, value)}` }).filter(Boolean).join(' · ')}</small></div>{config.editable !== false && <button onClick={() => begin(row)}>পরিবর্তন</button>}</div>)}</div> : <Empty label={query ? 'এই অনুসন্ধানে কোনো রেকর্ড নেই।' : `এখনো ${active} রেকর্ড নেই।`} />}</article>
+      {loading ? <Empty label="তথ্য লোড হচ্ছে…"/> : visibleRows.length ? <div className="manager-list">{visibleRows.map(row => <div className="manager-row" key={row.id}><div><b>{config.titleKeys.map(key => row[key] ? displayValue(key, row[key]) : '').find(Boolean) || row.id}</b><small>{config.detailKeys.map(key => { const value = row[key]; if (value == null || value === '') return null; return `${managerTitles[key] ?? key}: ${key.endsWith('_at') || key === 'lesson_date' ? inputDate(value, key === 'lesson_date') : displayValue(key, value)}` }).filter(Boolean).join(' · ')}</small></div><div className="manager-row-actions">{config.editable !== false && <button onClick={() => begin(row)}>পরিবর্তন</button>}{config.retireStatus && row.status !== config.retireStatus && !(config.table === 'class_sessions' && row.status === 'completed') && <button className="manager-retire" disabled={saving} onClick={() => void retire(row)}>{config.retireLabel ?? 'আর্কাইভ'}</button>}</div></div>)}</div> : <Empty label={query ? 'এই অনুসন্ধানে কোনো রেকর্ড নেই।' : `এখনো ${active} রেকর্ড নেই।`} />}</article>
   </section>
 }

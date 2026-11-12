@@ -35,6 +35,12 @@
 .auth-page-toolbar + .auth-card { margin-top: 18px; }
 .auth-page-toolbar .auth-back { padding: 9px 11px; }
 .student-top-actions .language-toggle { min-width: 94px; }
+.manager-row-actions { display: flex; align-items: center; flex: none; gap: 7px; }
+.manager-row-actions>button { border: 1px solid #d5e3e7; border-radius: 9px; background: #fff; color: #376575; padding: 8px 11px; font: inherit; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.manager-row-actions>button:hover { border-color: #16929b; color: #087983; }
+.manager-row-actions>.manager-retire { border-color: #eadbbd; color: #8c6b29; background: #fffaf0; }
+.manager-row-actions>.manager-retire:hover { border-color: #d4a94e; color: #745315; background: #fff5dc; }
+.manager-row-actions>button:disabled { opacity: .55; cursor: wait; }
 
 /* Public academy landing page: clear hierarchy, responsive navigation and contact. */
 .real-public-complete { overflow: hidden; }
