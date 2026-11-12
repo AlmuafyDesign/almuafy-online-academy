@@ -26,9 +26,25 @@
 
 .real-public-nav button { white-space: normal; line-height: 1.35; }
 
+.language-toggle { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 12px !important; border: 1px solid #cfe3e3 !important; border-radius: 11px !important; color: #096c78 !important; background: linear-gradient(135deg, #effaf7, #fff) !important; font-family: Inter, 'Bornomala', 'Noto Sans Bengali', sans-serif !important; font-size: 13px !important; font-weight: 700; white-space: nowrap; box-shadow: 0 3px 9px #134f5d0b; transition: .18s ease; }
+.language-toggle:hover { border-color: #8bc8c5 !important; background: #e7f5f1 !important; transform: translateY(-1px); }
+.language-toggle>span { color: #b88a30; font-size: 17px; line-height: 1; }
+.auth-page-toolbar { width: min(760px, calc(100% - 28px)); display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px auto 0; }
+.auth-page-toolbar .auth-back { position: static; margin: 0; }
+.auth-page-toolbar .language-toggle { flex: none; }
+.auth-page-toolbar + .auth-card { margin-top: 18px; }
+.auth-page-toolbar .auth-back { padding: 9px 11px; }
+.student-top-actions .language-toggle { min-width: 94px; }
+
 @media (max-width: 760px) {
   .real-public-nav { height: auto; min-height: 64px; flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
   .real-public-nav>a { flex: 1 1 100%; }
   .real-public-nav>div { width: 100%; display: flex; gap: 6px; }
   .real-public-nav button { flex: 1 1 0; min-width: 0; padding: 8px 5px; font-size: 11px; }
+  .real-public-nav .language-toggle { min-width: 72px; }
+}
+
+@media (max-width: 380px) {
+  .student-top-actions .language-toggle { min-width: 73px; padding: 6px 7px !important; font-size: 11px !important; }
+  .student-top-actions .language-toggle>span { display: none; }
 }
