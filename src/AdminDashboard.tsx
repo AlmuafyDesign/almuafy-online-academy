@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { AcademyProfile } from './services/supabase'
 import { supabase } from './services/supabase'
 
-type IconName = 'grid' | 'users' | 'book' | 'calendar' | 'check' | 'layers' | 'bell' | 'settings' | 'search' | 'menu' | 'logout' | 'arrow' | 'clock' | 'plus'
+type IconName = 'grid' | 'users' | 'book' | 'calendar' | 'check' | 'layers' | 'bell' | 'settings' | 'search' | 'menu' | 'logout' | 'arrow' | 'clock' | 'plus' | 'chart'
 const paths: Record<IconName, React.ReactNode> = {
   grid: <><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></>,
   users: <><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></>,
@@ -18,6 +18,7 @@ const paths: Record<IconName, React.ReactNode> = {
   arrow: <><path d="M7 17 17 7M7 7h10v10"/></>,
   clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
   plus: <><path d="M12 5v14m-7-7h14"/></>,
+  chart: <><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-5 5"/></>,
 }
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg> }
 
@@ -27,7 +28,7 @@ const EMPTY: DashboardData = { students: null, classes: null, homework: null, se
 const navGroups: { title: string; items: { label: string; icon: IconName }[] }[] = [
   { title: 'একাডেমি', items: [{ label: 'ড্যাশবোর্ড', icon: 'grid' }, { label: 'শিক্ষার্থী', icon: 'users' }, { label: 'ভর্তি ব্যবস্থাপনা', icon: 'users' }, { label: 'ক্লাস ও পাঠ', icon: 'book' }, { label: 'সময়সূচি', icon: 'calendar' }, { label: 'উপস্থিতি', icon: 'check' }] },
   { title: 'শেখার উপকরণ', items: [{ label: 'দৈনিক পাঠ', icon: 'book' }, { label: 'পাঠের উপকরণ', icon: 'arrow' }, { label: 'হোমওয়ার্ক', icon: 'check' }, { label: 'হোমওয়ার্ক মূল্যায়ন', icon: 'check' }, { label: 'লাইব্রেরি বিভাগ', icon: 'layers' }, { label: 'লাইব্রেরি', icon: 'layers' }] },
-  { title: 'পরিচালনা', items: [{ label: 'নোটিশ', icon: 'bell' }, { label: 'শিক্ষার্থী বিজ্ঞপ্তি', icon: 'bell' }, { label: 'কার্যক্রম লগ', icon: 'clock' }, { label: 'সেটিংস', icon: 'settings' }] },
+  { title: 'পরিচালনা', items: [{ label: 'নোটিশ', icon: 'bell' }, { label: 'শিক্ষার্থী বিজ্ঞপ্তি', icon: 'bell' }, { label: 'কার্যক্রম লগ', icon: 'clock' }, { label: 'রিপোর্ট', icon: 'chart' }, { label: 'সেটিংস', icon: 'settings' }] },
 ]
 function dhakaDayBounds() { const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()); const part = (type: string) => parts.find(item => item.type === type)?.value ?? ''; const day = `${part('year')}-${part('month')}-${part('day')}`; return { start: new Date(`${day}T00:00:00+06:00`).toISOString(), end: new Date(`${day}T00:00:00+06:00`).getTime() + 86_400_000 } }
 function bnDate(value: string, options?: Intl.DateTimeFormatOptions) { return new Intl.DateTimeFormat('bn-BD', { timeZone: 'Asia/Dhaka', ...options }).format(new Date(value)) }
@@ -96,8 +97,8 @@ export default function AdminDashboard({ profile, onSignOut }: { profile: Academ
           <section className="premium-stats">{stats.map(stat => <article className={`premium-stat ${stat.color}`} key={stat.label}><span className="stat-symbol"><Icon name={stat.icon} size={19}/></span><small>{stat.label}</small><strong>{loading ? '…' : stat.value === null ? '—' : typeof stat.value === 'number' ? bnNumber(stat.value) : stat.value}</strong><span className="stat-note">{stat.note}</span><i className="stat-orb"/></article>)}</section>
           <section className="premium-columns"><article className="premium-panel schedule-panel"><div className="premium-panel-head"><div><span className="panel-symbol teal"><Icon name="calendar" size={17}/></span><div><h3>আজকের সময়সূচি</h3><p>{bnDate(new Date().toISOString(), { day: 'numeric', month: 'long', timeZone: 'Asia/Dhaka' })} · নির্ধারিত ক্লাস</p></div></div><button onClick={() => setActive('সময়সূচি')}>সব দেখুন <Icon name="arrow" size={14}/></button></div><div className="premium-records">{loading ? <Empty label="সময়সূচি লোড হচ্ছে…"/> : data.sessions.length ? data.sessions.map(item => { const classInfo = Array.isArray(item.classes) ? item.classes[0] : item.classes; return <div className="premium-session" key={item.id}><span className="session-time"><b>{bnDate(item.starts_at, { hour: '2-digit', minute: '2-digit' })}</b><small>{item.duration_minutes} মিনিট</small></span><span className="session-mark"><Icon name="book" size={16}/></span><div className="session-info"><b>{item.title || classInfo?.name || 'ক্লাস সেশন'}</b><small>{classInfo?.subject || classInfo?.name || 'একাডেমি ক্লাস'} · {item.status === 'live' ? 'লাইভ' : item.status === 'completed' ? 'সম্পন্ন' : 'নির্ধারিত'}</small></div>{item.meeting_url && <a className="join-link" href={item.meeting_url} target="_blank" rel="noreferrer">ক্লাসে যান →</a>}</div> }) : <Empty label="আজকের জন্য কোনো ক্লাস নির্ধারিত নেই।"/>}</div><button className="panel-foot-link" onClick={() => setActive('সময়সূচি')}>সম্পূর্ণ সময়সূচি <Icon name="arrow" size={14}/></button></article>
             <article className="premium-panel attendance-panel"><div className="premium-panel-head"><div><span className="panel-symbol gold"><Icon name="check" size={17}/></span><div><h3>উপস্থিতির সারাংশ</h3><p>গত ৭ দিনের নথিভুক্ত তথ্য</p></div></div><button onClick={() => setActive('উপস্থিতি')}>বিস্তারিত <Icon name="arrow" size={14}/></button></div>{data.attendance ? <div className="attendance-live"><div className="attendance-ring" style={{ '--attendance': `${attendancePercent ?? 0}%` } as React.CSSProperties}><div><b>{bnNumber(attendancePercent ?? 0)}<small>%</small></b><span>উপস্থিত</span></div></div><div className="attendance-legend"><div><i className="present-dot"/><span>উপস্থিত</span><b>{bnNumber(data.attendance.present)}</b></div><div><i className="absent-dot"/><span>অন্যান্য</span><b>{bnNumber(data.attendance.total - data.attendance.present)}</b></div><small>মোট {bnNumber(data.attendance.total)}টি attendance record</small></div></div> : <Empty label="উপস্থিতির রেকর্ড যোগ হলে সারাংশ এখানে দেখা যাবে।"/>}<button className="panel-foot-link" onClick={() => setActive('উপস্থিতি')}>উপস্থিতির তথ্য <Icon name="arrow" size={14}/></button></article></section>
-          <section className="premium-columns lower"><article className="premium-panel"><div className="premium-panel-head"><div><span className="panel-symbol violet"><Icon name="layers" size={17}/></span><div><h3>সাম্প্রতিক কার্যক্রম</h3><p>অ্যাডমিন activity log থেকে</p></div></div><button onClick={() => setActive('সেটিংস')}>সব দেখুন <Icon name="arrow" size={14}/></button></div><div className="activity-records">{loading ? <Empty label="কার্যক্রম লোড হচ্ছে…"/> : data.activities.length ? data.activities.map(item => <div className="activity-line" key={item.id}><span><Icon name="clock" size={15}/></span><div><b>{item.action} · {item.entity_type}</b><small>{bnDate(item.created_at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div></div>) : <Empty label="নতুন কার্যক্রম হলে এখানে দেখা যাবে।"/>}</div></article><article className="premium-notice"><div className="notice-label"><span><Icon name="bell" size={16}/></span> সর্বশেষ প্রকাশিত নোটিশ</div>{loading ? <Empty label="নোটিশ লোড হচ্ছে…"/> : data.notice ? <><h3>{data.notice.title}</h3><p>{data.notice.description}</p><small>{data.notice.published_at ? bnDate(data.notice.published_at, { day: 'numeric', month: 'long', year: 'numeric' }) : ''}</small></> : <Empty label="এখনো কোনো প্রকাশিত নোটিশ নেই।"/>}<button onClick={() => setActive('নোটিশ')}>নোটিশ দেখুন <Icon name="arrow" size={14}/></button></article></section>
-        </> : active === 'সেটিংস' ? <AcademySettings profile={profile} /> : <ModuleManager key={active} active={active} profile={profile} query={query} />}
+          <section className="premium-columns lower"><article className="premium-panel"><div className="premium-panel-head"><div><span className="panel-symbol violet"><Icon name="layers" size={17}/></span><div><h3>সাম্প্রতিক কার্যক্রম</h3><p>অ্যাডমিন activity log থেকে</p></div></div><button onClick={() => setActive('কার্যক্রম লগ')}>সব দেখুন <Icon name="arrow" size={14}/></button></div><div className="activity-records">{loading ? <Empty label="কার্যক্রম লোড হচ্ছে…"/> : data.activities.length ? data.activities.map(item => <div className="activity-line" key={item.id}><span><Icon name="clock" size={15}/></span><div><b>{item.action} · {item.entity_type}</b><small>{bnDate(item.created_at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div></div>) : <Empty label="নতুন কার্যক্রম হলে এখানে দেখা যাবে।"/>}</div></article><article className="premium-notice"><div className="notice-label"><span><Icon name="bell" size={16}/></span> সর্বশেষ প্রকাশিত নোটিশ</div>{loading ? <Empty label="নোটিশ লোড হচ্ছে…"/> : data.notice ? <><h3>{data.notice.title}</h3><p>{data.notice.description}</p><small>{data.notice.published_at ? bnDate(data.notice.published_at, { day: 'numeric', month: 'long', year: 'numeric' }) : ''}</small></> : <Empty label="এখনো কোনো প্রকাশিত নোটিশ নেই।"/>}<button onClick={() => setActive('নোটিশ')}>নোটিশ দেখুন <Icon name="arrow" size={14}/></button></article></section>
+        </> : active === 'সেটিংস' ? <AcademySettings profile={profile} /> : active === 'রিপোর্ট' ? <Reports profile={profile} /> : <ModuleManager key={active} active={active} profile={profile} query={query} />}
         <footer className="premium-footer"><span>© {new Date().getFullYear()} আলমুয়াফী অনলাইন একাডেমি</span><span>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</span></footer>
       </div>
     </main>
@@ -107,12 +108,12 @@ export default function AdminDashboard({ profile, onSignOut }: { profile: Academ
 function Empty({ label }: { label: string }) { return <div className="premium-empty"><span>✦</span><p>{label}</p></div> }
 
 type AcademySettingsRecord = {
-  academy_name: string; description: string;
+  academy_name: string; description: string; subjects: string; teaching_methodology: string; academy_features: string; online_class_steps: string;
   contact_email: string; contact_phone: string; facebook: string; youtube: string;
   footer_text: string;
 }
 const EMPTY_SETTINGS: AcademySettingsRecord = {
-  academy_name: '', description: '', contact_email: '', contact_phone: '',
+  academy_name: '', description: '', subjects: '', teaching_methodology: '', academy_features: '', online_class_steps: '', contact_email: '', contact_phone: '',
   facebook: '', youtube: '', footer_text: '',
 }
 function AcademySettings({ profile }: { profile: AcademyProfile }) {
@@ -130,6 +131,8 @@ function AcademySettings({ profile }: { profile: AcademyProfile }) {
       if (loadError) setError('একাডেমির সেটিংস পড়া যায়নি। ডেটাবেজ সংযোগ ও অনুমতি যাচাই করুন।')
       if (data) setForm({
         academy_name: data.academy_name ?? '', description: data.description ?? '',
+        subjects: (data.subjects ?? []).join('\n'), teaching_methodology: data.teaching_methodology ?? '',
+        academy_features: (data.academy_features ?? []).join('\n'), online_class_steps: (data.online_class_steps ?? []).join('\n'),
         contact_email: data.contact_email ?? '', contact_phone: data.contact_phone ?? '',
         facebook: data.social_links?.facebook ?? '', youtube: data.social_links?.youtube ?? '', footer_text: data.footer_text ?? '',
       })
@@ -144,6 +147,9 @@ function AcademySettings({ profile }: { profile: AcademyProfile }) {
     if (!supabase) { setError('Supabase সংযোগ সেট করা নেই।'); setSaving(false); return }
     const payload = {
       id: 1, academy_name: form.academy_name.trim(), description: form.description.trim(),
+      subjects: form.subjects.split('\n').map(item => item.trim()).filter(Boolean), teaching_methodology: form.teaching_methodology.trim(),
+      academy_features: form.academy_features.split('\n').map(item => item.trim()).filter(Boolean),
+      online_class_steps: form.online_class_steps.split('\n').map(item => item.trim()).filter(Boolean),
       contact_email: form.contact_email.trim() || null,
       contact_phone: form.contact_phone.trim() || null,
       social_links: { facebook: form.facebook.trim(), youtube: form.youtube.trim() },
@@ -158,12 +164,62 @@ function AcademySettings({ profile }: { profile: AcademyProfile }) {
   return <section className="premium-module advanced-settings"><div className="premium-section-title"><div><div className="premium-date"><span/> একাডেমি পরিচালনা</div><h2>অ্যাডভান্সড সেটিংস</h2><p>প্রকাশ্য সাইটে দেখানো একাডেমির তথ্য ও যোগাযোগ পরিচালনা করুন।</p></div><span className="live-pill"><i/> বাস্তব সেটিংস</span></div>
     {loading ? <article className="premium-panel"><Empty label="একাডেমির সেটিংস পড়া হচ্ছে…"/></article> : <form className="premium-panel advanced-form" onSubmit={save}>
       <div className="advanced-settings-intro"><span className="panel-symbol teal"><Icon name="settings" size={18}/></span><div><b>{profile.full_name || 'অ্যাডমিন'} · একাডেমি কনফিগারেশন</b><small>পরিবর্তন Supabase-এ সংরক্ষিত হবে এবং পাবলিক সাইটে ব্যবহৃত হবে।</small></div></div>
-      <fieldset><legend>একাডেমির পরিচিতি</legend><div className="advanced-grid">{field('একাডেমির নাম', 'academy_name')}{field('একাডেমির পরিচিতি', 'description', { multiline: true })}</div></fieldset>
+      <fieldset><legend>একাডেমির পরিচিতি</legend><div className="advanced-grid">{field('একাডেমির নাম', 'academy_name')}{field('একাডেমির পরিচিতি', 'description', { multiline: true })}{field('পড়ানো বিষয় · প্রতি লাইনে একটি', 'subjects', { multiline: true })}{field('পাঠদানের পদ্ধতি', 'teaching_methodology', { multiline: true })}{field('একাডেমির সুবিধা · প্রতি লাইনে একটি', 'academy_features', { multiline: true })}{field('অনলাইন ক্লাসে অংশ নেওয়ার ধাপ · প্রতি লাইনে একটি', 'online_class_steps', { multiline: true })}</div></fieldset>
       <fieldset><legend>যোগাযোগ ও প্রকাশনা</legend><div className="advanced-grid">{field('যোগাযোগের ইমেইল', 'contact_email', { type: 'email' })}{field('যোগাযোগের ফোন', 'contact_phone', { type: 'tel' })}{field('Facebook URL', 'facebook', { type: 'url' })}{field('YouTube URL', 'youtube', { type: 'url' })}{field('ফুটারের লেখা', 'footer_text', { multiline: true })}</div></fieldset>
       {(error || message) && <div className={error ? 'advanced-feedback is-error' : 'advanced-feedback'} role="status">{error || message}</div>}
       <div className="advanced-actions"><span>সেটিংস পরিবর্তন করলে পাবলিক সাইটের তথ্যও বদলাবে।</span><button className="premium-add" type="submit" disabled={saving || !form.academy_name.trim()}>{saving ? 'সংরক্ষণ হচ্ছে…' : 'সেটিংস সংরক্ষণ করুন'}</button></div>
     </form>}
   </section>
+}
+
+type ReportRow = Record<string, string | number | null>
+function csvValue(value: unknown) { const text = String(value ?? ''); return `"${text.replaceAll('"', '""')}"` }
+function downloadCsv(filename: string, headers: string[], rows: ReportRow[]) {
+  const csv = '\uFEFF' + [headers.map(csvValue).join(','), ...rows.map(row => headers.map(header => csvValue(row[header])).join(','))].join('\r\n')
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+  const link = document.createElement('a'); link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url)
+}
+function Reports({ profile }: { profile: AcademyProfile }) {
+  const [report, setReport] = useState<'students' | 'attendance' | 'homework' | 'enrollments'>('students')
+  const [rows, setRows] = useState<ReportRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [reload, setReload] = useState(0)
+  useEffect(() => {
+    let live = true
+    async function load() {
+      if (!supabase) { setError('Supabase সংযোগ সেট করা নেই।'); setLoading(false); return }
+      setLoading(true); setError('')
+      let result: { data: any[] | null; error: any }
+      if (report === 'students') result = await supabase.from('profiles').select('id,full_name,email,phone,status,created_at').eq('role', 'student').order('created_at', { ascending: false }).limit(1000)
+      else if (report === 'attendance') {
+        const { start } = dhakaDayBounds(); const from = new Date(new Date(start).getTime() - 30 * 86_400_000).toISOString()
+        const response = await supabase.from('attendance').select('status,note,recorded_at,profiles(full_name,email),class_sessions(title,classes(name))').gte('recorded_at', from).order('recorded_at', { ascending: false }).limit(2000)
+        result = { data: response.data ? response.data.map(item => ({ শিক্ষার্থী: (Array.isArray(item.profiles) ? item.profiles[0] : item.profiles)?.full_name || (Array.isArray(item.profiles) ? item.profiles[0] : item.profiles)?.email || '', ক্লাস: (Array.isArray(item.class_sessions) ? item.class_sessions[0] : item.class_sessions)?.title || '', অবস্থা: statusLabels[item.status] || item.status, তারিখ: bnDate(item.recorded_at, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }), মন্তব্য: item.note })) : null, error: response.error }
+      } else if (report === 'homework') {
+        const response = await supabase.from('homework_submissions').select('status,marks,teacher_feedback,submitted_at,profiles(full_name,email),homework(title)').order('submitted_at', { ascending: false }).limit(2000)
+        result = { data: response.data ? response.data.map(item => ({ শিক্ষার্থী: (Array.isArray(item.profiles) ? item.profiles[0] : item.profiles)?.full_name || (Array.isArray(item.profiles) ? item.profiles[0] : item.profiles)?.email || '', হোমওয়ার্ক: (Array.isArray(item.homework) ? item.homework[0] : item.homework)?.title || '', অবস্থা: statusLabels[item.status] || item.status, নম্বর: item.marks, শিক্ষকের_মন্তব্য: item.teacher_feedback, জমার_তারিখ: bnDate(item.submitted_at, { year: 'numeric', month: '2-digit', day: '2-digit' }) })) : null, error: response.error }
+      } else {
+        const response = await supabase.from('class_enrollments').select('status,enrolled_at,profiles(full_name,email),classes(name,subject)').order('enrolled_at', { ascending: false }).limit(2000)
+        result = { data: response.data ? response.data.map(item => ({ শিক্ষার্থী: (Array.isArray(item.profiles) ? item.profiles[0] : item.profiles)?.full_name || (Array.isArray(item.profiles) ? item.profiles[0] : item.profiles)?.email || '', ক্লাস: (Array.isArray(item.classes) ? item.classes[0] : item.classes)?.name || '', বিষয়: (Array.isArray(item.classes) ? item.classes[0] : item.classes)?.subject || '', অবস্থা: statusLabels[item.status] || item.status, ভর্তির_তারিখ: bnDate(item.enrolled_at, { year: 'numeric', month: '2-digit', day: '2-digit' }) })) : null, error: response.error }
+      }
+      if (!live) return
+      if (result.error) setError('রিপোর্টের তথ্য লোড হয়নি। Supabase সংযোগ ও অ্যাডমিন অনুমতি যাচাই করুন।')
+      setRows(result.data ?? []); setLoading(false)
+      void supabase.from('activity_logs').insert({ actor_id: profile.id, action: 'রিপোর্ট দেখা', entity_type: `report_${report}`, details: { rows: result.data?.length ?? 0 } })
+    }
+    void load()
+    return () => { live = false }
+  }, [profile.id, report, reload])
+  const columns = report === 'students' ? ['full_name', 'email', 'phone', 'status', 'created_at'] : report === 'attendance' ? ['শিক্ষার্থী', 'ক্লাস', 'অবস্থা', 'তারিখ', 'মন্তব্য'] : report === 'homework' ? ['শিক্ষার্থী', 'হোমওয়ার্ক', 'অবস্থা', 'নম্বর', 'শিক্ষকের_মন্তব্য', 'জমার_তারিখ'] : ['শিক্ষার্থী', 'ক্লাস', 'বিষয়', 'অবস্থা', 'ভর্তির_তারিখ']
+  const labels: Record<string, string> = { full_name: 'শিক্ষার্থী', email: 'ইমেইল', phone: 'ফোন', status: 'অবস্থা', created_at: 'নিবন্ধন', 'শিক্ষার্থী': 'শিক্ষার্থী', 'ক্লাস': 'ক্লাস', 'বিষয়': 'বিষয়', 'অবস্থা': 'অবস্থা', 'তারিখ': 'তারিখ', 'মন্তব্য': 'মন্তব্য', 'হোমওয়ার্ক': 'হোমওয়ার্ক', 'নম্বর': 'নম্বর', 'শিক্ষকের_মন্তব্য': 'শিক্ষকের মন্তব্য', 'জমার_তারিখ': 'জমার তারিখ', 'ভর্তির_তারিখ': 'ভর্তির তারিখ' }
+  const reportLabel = ({ students: 'শিক্ষার্থী তালিকা', attendance: 'উপস্থিতি · গত ৩০ দিন', homework: 'হোমওয়ার্ক জমা ও মূল্যায়ন', enrollments: 'ক্লাস ভর্তি তালিকা' } as Record<string, string>)[report]
+  function exportReport() {
+    const headerNames = columns.map(key => labels[key] || key)
+    const exportRows = rows.map(row => Object.fromEntries(columns.map(key => [labels[key] || key, key.endsWith('_at') && typeof row[key] === 'string' ? bnDate(row[key] as string, { year: 'numeric', month: '2-digit', day: '2-digit' }) : row[key]])))
+    downloadCsv(`almuafy-${report}.csv`, headerNames, exportRows)
+  }
+  return <section className="premium-module"><div className="premium-section-title"><div><div className="premium-date"><span/> একাডেমি পরিচালনা</div><h2>বাস্তব রিপোর্ট</h2><p>Supabase-এর বর্তমান তথ্য; ডেমো রেকর্ড নেই।</p></div><span className="live-pill"><i/> লাইভ ডেটা</span></div>{error && <div className="premium-alert" role="status">{error}</div>}<article className="premium-panel report-panel"><div className="report-toolbar"><label>রিপোর্ট ধরন<select value={report} onChange={event => setReport(event.target.value as typeof report)}><option value="students">শিক্ষার্থী তালিকা</option><option value="attendance">উপস্থিতি · গত ৩০ দিন</option><option value="homework">হোমওয়ার্ক জমা ও মূল্যায়ন</option><option value="enrollments">ক্লাস ভর্তি তালিকা</option></select></label><div><button className="manager-cancel" onClick={() => setReload(value => value + 1)}>হালনাগাদ</button><button className="premium-add" disabled={loading || rows.length === 0} onClick={exportReport}><Icon name="arrow" size={15}/> CSV ডাউনলোড</button></div></div><div className="report-summary"><b>{reportLabel}</b><span>{loading ? 'লোড হচ্ছে…' : `${bnNumber(rows.length)}টি রেকর্ড`}</span></div>{loading ? <Empty label="রিপোর্ট তৈরি হচ্ছে…"/> : rows.length ? <div className="report-table-wrap"><table className="report-table"><thead><tr>{columns.map(key => <th key={key}>{labels[key] || key}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={String(row.id ?? row.email ?? `${index}`)}>{columns.map(key => <td key={key}>{key === 'status' || key === 'অবস্থা' ? statusLabels[String(row[key])] || row[key] : row[key] == null ? '—' : String(row[key])}</td>)}</tr>)}</tbody></table></div> : <Empty label={`${reportLabel}-এ এখনো কোনো রেকর্ড নেই।`} />}</article></section>
 }
 
 type ManagerField = { key: string; label: string; type?: 'text' | 'email' | 'tel' | 'url' | 'textarea' | 'date' | 'datetime-local' | 'number' | 'select' | 'checkbox'; required?: boolean; options?: { value: string; label: string }[]; hint?: string }
