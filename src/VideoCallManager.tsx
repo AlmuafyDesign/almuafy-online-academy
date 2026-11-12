@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import type { DailyCall } from '@daily-co/daily-js'
 import type { AcademyProfile } from './services/supabase'
 import { supabase } from './services/supabase'
 import { bi } from './bilingual'
@@ -18,15 +19,30 @@ type CallRow = {
   answered_at: string | null
 }
 type CallInfo = { id: string; peerId: string; peerName: string; mode: 'audio' | 'video'; direction: 'outgoing' | 'incoming' }
+type CallHistoryRow = { id: string; caller_id: string; callee_id: string; caller_name: string; callee_name: string; call_type: 'audio' | 'video'; status: string; created_at: string; duration_seconds: number }
 type FloatingSize = 'compact' | 'large' | 'max'
 
-const ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }]
+function decodeVapidKey(value: string): ArrayBuffer {
+  const padded = value + '='.repeat((4 - value.length % 4) % 4)
+  const decoded = atob(padded.replace(/-/g, '+').replace(/_/g, '/'))
+  const bytes = new Uint8Array(decoded.length)
+  for (let index = 0; index < decoded.length; index++) bytes[index] = decoded.charCodeAt(index)
+  return bytes.buffer
+}
 
 export default function VideoCallManager({ profile }: { profile: AcademyProfile }) {
   const { language } = useLanguage()
   const [contacts, setContacts] = useState<Contact[]>([])
+  const [onlineContacts, setOnlineContacts] = useState<Set<string>>(new Set())
   const [contactsOpen, setContactsOpen] = useState(false)
+  const [callTab, setCallTab] = useState<'contacts' | 'history'>('contacts')
   const [contactsLoading, setContactsLoading] = useState(false)
+  const [history, setHistory] = useState<CallHistoryRow[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [usage, setUsage] = useState<{ participant_minutes: number; monthly_limit: number } | null>(null)
+  const [usageLimitDraft, setUsageLimitDraft] = useState('10000')
+  const [pushState, setPushState] = useState<'unknown' | 'enabled' | 'unsupported' | 'setup-needed'>('unknown')
+  const [pushBusy, setPushBusy] = useState(false)
   const [notice, setNotice] = useState('')
   const [incoming, setIncoming] = useState<CallRow | null>(null)
   const [activeCall, setActiveCall] = useState<CallInfo | null>(null)
@@ -35,6 +51,7 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const [micEnabled, setMicEnabled] = useState(true)
   const [cameraEnabled, setCameraEnabled] = useState(true)
+  const [speakerOutputIndex, setSpeakerOutputIndex] = useState(0)
   const [minimized, setMinimized] = useState(false)
   const [floatingSize, setFloatingSize] = useState<FloatingSize>('compact')
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
@@ -43,15 +60,15 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
   const [callerName, setCallerName] = useState('')
   const alertChannelRef = useRef<ReturnType<NonNullable<typeof supabase>['channel']> | null>(null)
   const signalChannelRef = useRef<ReturnType<NonNullable<typeof supabase>['channel']> | null>(null)
-  const peerRef = useRef<RTCPeerConnection | null>(null)
+  const dailyCallRef = useRef<DailyCall | null>(null)
+  const dailyCredentialsRef = useRef<{ url: string; token: string } | null>(null)
+  const joinDailyRoomRef = useRef<(callId: string, mode: 'audio' | 'video') => Promise<void>>(async () => undefined)
   const localStreamRef = useRef<MediaStream | null>(null)
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
   const activeCallRef = useRef<CallInfo | null>(null)
   const incomingRef = useRef<CallRow | null>(null)
-  const queuedIceRef = useRef<(RTCIceCandidateInit | null)[]>([])
-  const offerStartedRef = useRef(false)
   const connectedAtRef = useRef<number | null>(null)
   const dragRef = useRef<{ pointerId: number; dx: number; dy: number } | null>(null)
   const callStatusRef = useRef(callStatus)
@@ -65,14 +82,14 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
   useEffect(() => { if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteStream }, [remoteStream])
 
   const cleanMedia = useCallback(() => {
-    peerRef.current?.close()
-    peerRef.current = null
+    const dailyCall = dailyCallRef.current
+    dailyCallRef.current = null
+    dailyCredentialsRef.current = null
+    if (dailyCall && !dailyCall.isDestroyed()) void dailyCall.leave().catch(() => undefined).finally(() => void dailyCall.destroy().catch(() => undefined))
     localStreamRef.current?.getTracks().forEach(track => track.stop())
     localStreamRef.current = null
     setLocalStream(null)
     setRemoteStream(null)
-    queuedIceRef.current = []
-    offerStartedRef.current = false
   }, [])
 
   const removeChannel = useCallback((ref: typeof signalChannelRef | typeof alertChannelRef) => {
@@ -81,6 +98,8 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
   }, [])
 
   const closeCallWindow = useCallback(() => {
+    const callId = activeCallRef.current?.id
+    if (callId) void supabase?.functions.invoke('daily-call-session', { body: { callId, action: 'end' } })
     removeChannel(signalChannelRef)
     cleanMedia()
     activeCallRef.current = null
@@ -107,9 +126,8 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
     if (signalChannelRef.current) void supabase.removeChannel(signalChannelRef.current)
     const channel = supabase.channel(`academy-call:${callId}`, { config: { private: true, broadcast: { self: false, ack: true } } })
       .on('broadcast', { event: 'call_ready' }, () => {
-        if (activeCallRef.current?.direction === 'outgoing') void makeOffer()
+        if (activeCallRef.current?.direction === 'outgoing') void joinDailyRoomRef.current(callId, activeCallRef.current.mode)
       })
-      .on('broadcast', { event: 'call_signal' }, ({ payload }) => { void receiveSignal(payload as Record<string, any>) })
       .on('broadcast', { event: 'call_rejected' }, () => {
         setNotice(localText('কলটি গ্রহণ করা হয়নি।', 'The call was declined.'))
         closeCallWindow()
@@ -125,79 +143,77 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [closeCallWindow, localText])
 
-  const makeOffer = useCallback(async () => {
-    if (offerStartedRef.current || !peerRef.current) return
-    offerStartedRef.current = true
+  const syncDailyTracks = useCallback((call: DailyCall) => {
+    const participants = Object.values(call.participants()) as Array<any>
+    const local = participants.find(participant => participant.local)
+    const remote = participants.find(participant => !participant.local)
+    const toStream = (participant: any) => {
+      if (!participant) return null
+      const tracks = [participant.tracks?.audio?.persistentTrack, participant.tracks?.video?.persistentTrack]
+        .filter((track): track is MediaStreamTrack => Boolean(track && track.readyState === 'live'))
+      return tracks.length ? new MediaStream(tracks) : null
+    }
+    const localMedia = toStream(local)
+    const remoteMedia = toStream(remote)
+    localStreamRef.current = localMedia
+    setLocalStream(localMedia)
+    setRemoteStream(remoteMedia)
+    setMicEnabled(Boolean(local?.tracks?.audio?.state === 'playable' || call.localAudio()))
+    setCameraEnabled(Boolean(local?.tracks?.video?.state === 'playable' || call.localVideo()))
+    if (remote) setCallStatus('connected')
+    else if (call.meetingState() === 'joined-meeting') setCallStatus('connecting')
+  }, [])
+
+  const joinDailyRoom = useCallback(async (callId: string, mode: 'audio' | 'video', credentials?: { url: string; token: string }) => {
+    if (dailyCallRef.current) return
+    setCallStatus('connecting')
+    let access = credentials ?? dailyCredentialsRef.current
+    if (!access) {
+      const { data, error } = await supabase!.functions.invoke('daily-call-session', { body: { callId } })
+      if (error || !data?.url || !data?.token) throw new Error(data?.error ?? localText('নিরাপদ কল সংযোগ তৈরি হয়নি। Daily সেটিংস যাচাই করুন।', 'Could not prepare a secure call connection. Check the Daily settings.'))
+      access = { url: data.url, token: data.token }
+    }
+    const { default: DailyIframe } = await import('@daily-co/daily-js')
+    const call = DailyIframe.createCallObject()
+    dailyCallRef.current = call
+    const sync = () => syncDailyTracks(call)
+    call.on('joined-meeting', sync).on('participant-joined', sync).on('participant-updated', sync).on('participant-left', sync).on('track-started', sync).on('track-stopped', sync)
+      .on('network-connection', (event: any) => /disconnect|interrupt|fail/i.test(event?.event ?? '') ? setCallStatus('reconnecting') : sync())
+      .on('error', () => {
+        setCallStatus('failed')
+        const current = activeCallRef.current
+        if (current) void supabase?.rpc('fail_academy_video_call', { p_call_id: current.id })
+      })
+      .on('left-meeting', () => { if (activeCallRef.current) setCallStatus('reconnecting') })
     try {
-      const offer = await peerRef.current.createOffer()
-      await peerRef.current.setLocalDescription(offer)
-      await sendSignal('call_signal', { kind: 'offer', description: offer })
-    } catch {
-      offerStartedRef.current = false
-      setCallStatus('failed')
-    }
-  }, [sendSignal])
-
-  const receiveSignal = useCallback(async (payload: Record<string, any>) => {
-    const peer = peerRef.current
-    if (!peer) return
-    try {
-      if (payload.kind === 'offer' && payload.description) {
-        await peer.setRemoteDescription(payload.description as RTCSessionDescriptionInit)
-        for (const candidate of queuedIceRef.current.splice(0)) await peer.addIceCandidate(candidate)
-        const answer = await peer.createAnswer()
-        await peer.setLocalDescription(answer)
-        await sendSignal('call_signal', { kind: 'answer', description: answer })
-      } else if (payload.kind === 'answer' && payload.description) {
-        await peer.setRemoteDescription(payload.description as RTCSessionDescriptionInit)
-        for (const candidate of queuedIceRef.current.splice(0)) await peer.addIceCandidate(candidate)
-      } else if (payload.kind === 'ice') {
-        const candidate = payload.candidate as RTCIceCandidateInit | null
-        if (peer.remoteDescription) await peer.addIceCandidate(candidate)
-        else queuedIceRef.current.push(candidate)
+      await call.join({ url: access.url, token: access.token, startAudioOff: true, startVideoOff: true, userName: profile.full_name || 'Academy member' })
+      try { await call.setLocalAudio(true) } catch {
+        setMicEnabled(false)
+        setNotice(localText('আপনার device-এ microphone নেই বা অনুমতি বন্ধ। অপর পক্ষের কথা শুনতে পারবেন।', 'No microphone was found or microphone access is blocked. You can still hear the other person.'))
       }
-    } catch {
-      setCallStatus('failed')
-    }
-  }, [sendSignal])
-
-  const createPeer = useCallback((stream: MediaStream, mode: 'audio' | 'video') => {
-    peerRef.current?.close()
-    const peer = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceCandidatePoolSize: 4 })
-    peerRef.current = peer
-    stream.getTracks().forEach(track => peer.addTrack(track, stream))
-    if (!stream.getAudioTracks().length) peer.addTransceiver('audio', { direction: 'recvonly' })
-    if (mode === 'video' && !stream.getVideoTracks().length) peer.addTransceiver('video', { direction: 'recvonly' })
-    peer.ontrack = event => { setRemoteStream(event.streams[0] ?? new MediaStream([event.track])); setCallStatus('connecting') }
-    peer.onicecandidate = event => { void sendSignal('call_signal', { kind: 'ice', candidate: event.candidate?.toJSON() ?? null }) }
-    peer.onconnectionstatechange = () => {
-      if (peer.connectionState === 'connected') setCallStatus('connected')
-      else if (peer.connectionState === 'disconnected') setCallStatus('reconnecting')
-      else if (peer.connectionState === 'failed') setCallStatus('failed')
-    }
-  }, [sendSignal])
-
-  const requestMedia = useCallback(async (mode: 'audio' | 'video') => {
-    if (!navigator.mediaDevices?.getUserMedia) throw new Error(localText('এই browser-এ audio/video call সমর্থিত নয়। HTTPS-এ খুলুন।', 'Audio/video calling is unavailable in this browser. Open the secure HTTPS site.'))
-    let stream: MediaStream
-    let cameraUnavailable = false
-    if (mode === 'video') {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: 'user' } })
-      } catch (error) {
-        const noCamera = error instanceof DOMException && (error.name === 'NotFoundError' || error.name === 'OverconstrainedError')
-        if (!noCamera) throw error
-        cameraUnavailable = true
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      if (mode === 'video') {
+        try { await call.setLocalVideo(true) } catch {
+          setCameraEnabled(false)
+          setNotice(localText('আপনার device-এ camera নেই বা অনুমতি বন্ধ। Audio call চলবে; অপর পক্ষের video দেখতে পারবেন।', 'No camera was found or camera access is blocked. Audio will work; you can still see the other person.'))
+        }
       }
-    } else stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-    localStreamRef.current = stream
-    setLocalStream(stream)
-    setMicEnabled(stream.getAudioTracks().some(track => track.enabled))
-    setCameraEnabled(stream.getVideoTracks().some(track => track.enabled))
-    if (cameraUnavailable) setNotice(localText('আপনার device-এ camera নেই। আপনি audio-তে কথা বলতে পারবেন, অপর পক্ষের video দেখতে পারবেন।', 'No camera was found on your device. You can speak by audio and still see the other person.'))
-    return stream
+      sync()
+    } catch (error) {
+      setCallStatus('failed')
+      const message = error instanceof Error ? error.message : ''
+      setNotice(message || localText('কল সংযোগ তৈরি হয়নি।', 'The call could not connect.'))
+      dailyCallRef.current = null
+      void call.leave().catch(() => undefined).finally(() => void call.destroy().catch(() => undefined))
+      throw error
+    }
+  }, [localText, profile.full_name, syncDailyTracks])
+
+  const prepareDailyRoom = useCallback(async (callId: string) => {
+    const { data, error } = await supabase!.functions.invoke('daily-call-session', { body: { callId } })
+    if (error || !data?.url || !data?.token) throw new Error(data?.error ?? localText('নিরাপদ কল রুম তৈরি হয়নি। Daily সেটিংস যাচাই করুন।', 'Could not create a secure call room. Check the Daily settings.'))
+    dailyCredentialsRef.current = { url: data.url, token: data.token }
   }, [localText])
+  joinDailyRoomRef.current = (callId, mode) => joinDailyRoom(callId, mode)
 
   const loadContacts = useCallback(async () => {
     if (!supabase) return
@@ -207,6 +223,69 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
     if (error) { setNotice(localText('কলের সুবিধা চালু হয়নি। Supabase setup সম্পন্ন করতে হবে।', 'Calling is not set up yet. The Supabase setup must be completed.')); return }
     setContacts((data ?? []) as Contact[])
   }, [localText])
+
+  const loadCallHistory = useCallback(async () => {
+    if (!supabase) return
+    setHistoryLoading(true)
+    const { data, error } = await supabase.rpc('get_academy_call_history', { p_limit: 50 })
+    setHistoryLoading(false)
+    if (error) { setNotice(localText('কলের ইতিহাস লোড হয়নি। নতুন database migration চালাতে হবে।', 'Call history is unavailable. Apply the new database migration.')); return }
+    setHistory((data ?? []) as CallHistoryRow[])
+  }, [localText])
+
+  const loadCallUsage = useCallback(async () => {
+    if (profile.role !== 'admin' || !supabase) return
+    const { data, error } = await supabase.rpc('get_academy_call_usage')
+    if (!error && data?.[0]) { setUsage(data[0]); setUsageLimitDraft(String(data[0].monthly_limit)) }
+  }, [profile.role])
+
+  const enableCallPush = async () => {
+    if (!supabase || pushBusy) return
+    setPushBusy(true)
+    try {
+      if (pushState === 'enabled') {
+        const registration = await navigator.serviceWorker.ready
+        const subscription = await registration.pushManager.getSubscription()
+        if (subscription) {
+          await supabase.from('push_subscriptions').delete().eq('user_id', profile.id).eq('endpoint', subscription.endpoint)
+          await subscription.unsubscribe()
+        }
+        setPushState('unknown')
+        setNotice(localText('কলের push notification বন্ধ হয়েছে।', 'Call push notifications are off.'))
+        return
+      }
+      const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+        setPushState('unsupported')
+        throw new Error(localText('এই browser-এ push notification সমর্থিত নয়।', 'This browser does not support push notifications.'))
+      }
+      if (!publicKey) {
+        setPushState('setup-needed')
+        throw new Error(localText('Push চালু করতে VAPID public key configure করতে হবে।', 'A VAPID public key must be configured before push notifications can be enabled.'))
+      }
+      const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission()
+      if (permission !== 'granted') throw new Error(localText('Browser settings-এ notification অনুমতি দিন।', 'Allow notifications in your browser settings.'))
+      const registration = await navigator.serviceWorker.ready
+      const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: decodeVapidKey(publicKey) })
+      const saved = subscription.toJSON()
+      if (!saved.endpoint || !saved.keys?.p256dh || !saved.keys.auth) throw new Error(localText('Push subscription সংরক্ষণ করা যায়নি।', 'The push subscription could not be saved.'))
+      const { error } = await supabase.from('push_subscriptions').upsert({ user_id: profile.id, endpoint: saved.endpoint, p256dh: saved.keys.p256dh, auth: saved.keys.auth, updated_at: new Date().toISOString() }, { onConflict: 'endpoint' })
+      if (error) throw error
+      setPushState('enabled')
+      setNotice(localText('ইনকামিং call notification চালু হয়েছে।', 'Incoming call notifications are enabled.'))
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : localText('Push notification চালু হয়নি।', 'Push notifications could not be enabled.'))
+    } finally { setPushBusy(false) }
+  }
+
+  const saveUsageLimit = async () => {
+    if (!supabase) return
+    const limit = Number(usageLimitDraft)
+    const { data, error } = await supabase.rpc('set_academy_call_monthly_limit', { p_limit: limit })
+    if (error) { setNotice(localText('মাসিক call limit সংরক্ষণ হয়নি।', 'The monthly calling limit was not saved.')); return }
+    setUsage(current => current ? { ...current, monthly_limit: data } : current)
+    setNotice(localText('মাসিক usage limit সংরক্ষিত হয়েছে।', 'The monthly usage limit has been saved.'))
+  }
 
   const showIncoming = useCallback(async (callId: string) => {
     if (!supabase || activeCallRef.current || incomingRef.current) return
@@ -221,19 +300,30 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
   useEffect(() => {
     if (!supabase) return
     void loadContacts()
+    void loadCallUsage()
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) setPushState('unsupported')
+    else void navigator.serviceWorker.ready.then(async registration => {
+      const subscription = await registration.pushManager.getSubscription()
+      if (!subscription) return
+      const { data } = await supabase!.from('push_subscriptions').select('id').eq('user_id', profile.id).eq('endpoint', subscription.endpoint).maybeSingle()
+      if (data) setPushState('enabled')
+    }).catch(() => undefined)
     const channel = supabase.channel(`academy-call-alerts:${profile.id}`, { config: { private: true, broadcast: { self: false } } })
       .on('broadcast', { event: 'incoming_call' }, ({ payload }) => {
         const callId = typeof payload?.callId === 'string' ? payload.callId : ''
         if (callId) void showIncoming(callId)
       })
       .subscribe(status => { if (status === 'SUBSCRIBED') alertChannelRef.current = channel })
+    const presence = supabase.channel('academy-call-presence', { config: { private: true, presence: { key: profile.id } } })
+      .on('presence', { event: 'sync' }, () => setOnlineContacts(new Set(Object.keys(presence.presenceState()))))
+      .subscribe(status => { if (status === 'SUBSCRIBED') void presence.track({ online_at: new Date().toISOString() }) })
     void supabase.from('academy_video_calls')
       .select('id,caller_id,callee_id,media_mode,status,created_at,expires_at,answered_at')
       .eq('callee_id', profile.id).eq('status', 'ringing').gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false }).limit(1).maybeSingle()
       .then(({ data }) => { if (data) void showIncoming(data.id) })
-    return () => { removeChannel({ current: channel }) }
-  }, [loadContacts, profile.id, removeChannel, showIncoming])
+    return () => { removeChannel({ current: channel }); removeChannel({ current: presence }) }
+  }, [loadCallUsage, loadContacts, profile.id, removeChannel, showIncoming])
 
   useEffect(() => {
     if (!activeCall) return
@@ -242,8 +332,8 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
     const timer = window.setInterval(async () => {
       const { data } = await client.from('academy_video_calls').select('status,expires_at,answered_at').eq('id', activeCall.id).maybeSingle()
       if (!data) return
-      if (data.status === 'rejected' || data.status === 'missed' || data.status === 'ended') {
-        setNotice(data.status === 'rejected' ? localText('কলটি গ্রহণ করা হয়নি।', 'The call was declined.') : data.status === 'missed' ? localText('কলের উত্তর পাওয়া যায়নি।', 'There was no answer.') : localText('কল শেষ হয়েছে।', 'The call has ended.'))
+      if (data.status === 'rejected' || data.status === 'missed' || data.status === 'ended' || data.status === 'failed') {
+        setNotice(data.status === 'rejected' ? localText('কলটি গ্রহণ করা হয়নি।', 'The call was declined.') : data.status === 'missed' ? localText('কলের উত্তর পাওয়া যায়নি।', 'There was no answer.') : data.status === 'failed' ? localText('কলের সংযোগ ব্যর্থ হয়েছে।', 'The call connection failed.') : localText('কল শেষ হয়েছে।', 'The call has ended.'))
         closeCallWindow()
       } else if (data.status === 'accepted' && new Date(data.expires_at).getTime() <= Date.now()) {
         await client.rpc('finish_academy_video_call', { p_call_id: activeCall.id })
@@ -263,14 +353,19 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
     if (!activeCall) return
     const client = supabase
     if (!client) return
-    const timer = window.setInterval(() => {
-      const state = peerRef.current?.connectionState
-      if (state && !['failed', 'closed', 'disconnected'].includes(state)) {
-        void client.rpc('keep_academy_video_call_alive', { p_call_id: activeCall.id })
+    const timer = window.setInterval(async () => {
+      const state = dailyCallRef.current?.meetingState()
+      if (state === 'joined-meeting') {
+        const { data, error } = await client.rpc('keep_academy_video_call_alive', { p_call_id: activeCall.id })
+        if (!error && data === false && activeCallRef.current?.id === activeCall.id) {
+          await sendSignal('call_ended', { userId: profile.id, reason: 'monthly-limit' })
+          setNotice(localText('কল বন্ধ হয়েছে। মাসিক call limit বা কলের অবস্থা যাচাই করুন।', 'The call has ended. Check the monthly calling limit or call status.'))
+          closeCallWindow()
+        }
       }
     }, 15_000)
     return () => window.clearInterval(timer)
-  }, [activeCall])
+  }, [activeCall, closeCallWindow, localText, profile.id, sendSignal])
 
   useEffect(() => {
     if (!incoming) return
@@ -278,6 +373,32 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
     const timer = window.setTimeout(() => setIncoming(current => current?.id === incoming.id ? null : current), remaining)
     return () => window.clearTimeout(timer)
   }, [incoming])
+
+  useEffect(() => {
+    if (!incoming) return
+    const AudioContextClass = window.AudioContext
+    if (!AudioContextClass) return
+    let context: AudioContext
+    try { context = new AudioContextClass() } catch { return }
+    const ring = () => {
+      if (context.state !== 'running') return
+      const start = context.currentTime
+      ;[0, 0.24].forEach(offset => {
+        const oscillator = context.createOscillator()
+        const gain = context.createGain()
+        oscillator.type = 'sine'
+        oscillator.frequency.value = offset ? 784 : 659
+        gain.gain.setValueAtTime(0.0001, start + offset)
+        gain.gain.exponentialRampToValueAtTime(0.08, start + offset + 0.025)
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.18)
+        oscillator.connect(gain); gain.connect(context.destination)
+        oscillator.start(start + offset); oscillator.stop(start + offset + 0.19)
+      })
+    }
+    void context.resume().then(ring).catch(() => undefined)
+    const timer = window.setInterval(ring, 1800)
+    return () => { window.clearInterval(timer); void context.close().catch(() => undefined) }
+  }, [incoming?.id])
 
   useEffect(() => {
     if (!incoming) return
@@ -296,11 +417,12 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
   const startCall = async (contact: Contact, mode: 'audio' | 'video') => {
     if (!supabase || busy || activeCallRef.current) return
     setBusy(contact.user_id); setNotice('')
-    let stream: MediaStream | null = null
+    let callId: string | null = null
+    let targetAlertChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null
     try {
-      stream = await requestMedia(mode)
-      const { data: callId, error } = await supabase.rpc('create_academy_video_call', { p_recipient_id: contact.user_id, p_media_mode: mode })
-      if (error || !callId) throw new Error(error?.message ?? 'Could not create call.')
+      const { data, error } = await supabase.rpc('create_academy_video_call', { p_recipient_id: contact.user_id, p_media_mode: mode })
+      if (error || !data) throw new Error(error?.message ?? 'Could not create call.')
+      callId = data as string
       const callInfo: CallInfo = { id: callId, peerId: contact.user_id, peerName: contact.full_name, mode, direction: 'outgoing' }
       activeCallRef.current = callInfo
       setActiveCall(callInfo); setCallStatus('ringing'); setContactsOpen(false); setMinimized(false)
@@ -316,16 +438,21 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
           return channel
         })(),
       ])
+      targetAlertChannel = targetAlert
       void signalChannel
-      createPeer(stream, mode)
+      await prepareDailyRoom(callId)
       const sent = await targetAlert.send({ type: 'broadcast', event: 'incoming_call', payload: { callId } })
       void supabase.removeChannel(targetAlert)
+      targetAlertChannel = null
       if (sent !== 'ok') throw new Error(localText('কলের অনুরোধ পাঠানো যায়নি। আবার চেষ্টা করুন।', 'The call invitation could not be sent. Please try again.'))
     } catch (error) {
-      if (stream) { stream.getTracks().forEach(track => track.stop()); localStreamRef.current = null; setLocalStream(null) }
+      if (targetAlertChannel) void supabase.removeChannel(targetAlertChannel)
       const msg = error instanceof Error ? error.message : ''
       const permission = error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError')
-      setNotice(permission ? localText('কল করতে camera/microphone permission দিন।', 'Allow camera and microphone access to call.') : msg || localText('কল শুরু করা যায়নি। আবার চেষ্টা করুন।', 'Could not start the call. Please try again.'))
+      const limit = msg.toLowerCase().includes('monthly calling limit')
+      const busyUser = msg.toLowerCase().includes('already in a call')
+      setNotice(permission ? localText('কল করতে camera/microphone permission দিন।', 'Allow camera and microphone access to call.') : limit ? localText('এই মাসের নির্ধারিত call limit পূর্ণ হয়েছে।', 'The configured monthly calling limit has been reached.') : busyUser ? localText('আপনি বা অন্যজন ইতিমধ্যে কলে আছেন।', 'You or the other person is already in a call.') : msg || localText('কল শুরু করা যায়নি। আবার চেষ্টা করুন।', 'Could not start the call. Please try again.'))
+      if (callId) await supabase.rpc('fail_academy_video_call', { p_call_id: callId })
       closeCallWindow()
     } finally { setBusy('') }
   }
@@ -334,21 +461,19 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
     if (!supabase || !incoming || busy) return
     const invite = incoming
     setBusy(invite.id); setNotice('')
-    let stream: MediaStream | null = null
     try {
-      stream = await requestMedia(invite.media_mode)
       const info: CallInfo = { id: invite.id, peerId: invite.caller_id, peerName: callerName, mode: invite.media_mode, direction: 'incoming' }
       const channel = await joinSignalChannel(invite.id)
-      createPeer(stream, invite.media_mode)
       const { data: accepted, error } = await supabase.rpc('respond_to_academy_video_call', { p_call_id: invite.id, p_accept: true })
       if (error || !accepted) throw new Error(localText('এই কলটি আর চালু নেই।', 'This call is no longer available.'))
       activeCallRef.current = info; setActiveCall(info); setCallStatus('connecting'); setIncoming(null); setMinimized(false)
+      await joinDailyRoom(invite.id, invite.media_mode)
       await channel.send({ type: 'broadcast', event: 'call_ready', payload: { userId: profile.id } })
     } catch (error) {
-      if (stream) { stream.getTracks().forEach(track => track.stop()); localStreamRef.current = null; setLocalStream(null) }
       const msg = error instanceof Error ? error.message : ''
       const permission = error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError')
       setNotice(permission ? localText('কল নিতে camera/microphone permission দিন।', 'Allow camera and microphone access to answer.') : msg || localText('কল গ্রহণ করা যায়নি।', 'Could not answer the call.'))
+      if (activeCallRef.current?.id === invite.id) await supabase.rpc('fail_academy_video_call', { p_call_id: invite.id })
       removeChannel(signalChannelRef)
       setIncoming(null)
     } finally { setBusy('') }
@@ -362,6 +487,7 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
       await channel.send({ type: 'broadcast', event: 'call_rejected', payload: { userId: profile.id } })
     } catch { /* The invitation may have expired while the user was deciding. */ }
     await supabase.rpc('respond_to_academy_video_call', { p_call_id: invite.id, p_accept: false })
+    void supabase.functions.invoke('daily-call-session', { body: { callId: invite.id, action: 'end' } })
     removeChannel(signalChannelRef)
     setIncoming(null)
   }
@@ -376,19 +502,38 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
 
   const toggleMic = () => {
     const next = !micEnabled
-    localStreamRef.current?.getAudioTracks().forEach(track => { track.enabled = next })
+    dailyCallRef.current?.setLocalAudio(next)
     setMicEnabled(next)
   }
   const toggleCamera = () => {
     const next = !cameraEnabled
-    localStreamRef.current?.getVideoTracks().forEach(track => { track.enabled = next })
+    if (!localStreamRef.current?.getVideoTracks().length && next) {
+      setNotice(localText('এই device-এ camera পাওয়া যায়নি।', 'No camera is available on this device.'))
+      return
+    }
+    dailyCallRef.current?.setLocalVideo(next)
     setCameraEnabled(next)
+  }
+  const cycleSpeaker = async () => {
+    const call = dailyCallRef.current
+    if (!call) return
+    try {
+      const { devices } = await call.enumerateDevices()
+      const outputs = devices.filter(device => device.kind === 'audiooutput' && device.deviceId)
+      if (!outputs.length) throw new Error(localText('এই browser-এ speaker নির্বাচন সমর্থিত নয়।', 'Speaker selection is not supported in this browser.'))
+      const nextIndex = (speakerOutputIndex + 1) % outputs.length
+      await call.setOutputDeviceAsync({ outputDeviceId: outputs[nextIndex].deviceId })
+      setSpeakerOutputIndex(nextIndex)
+      setNotice(outputs.length > 1 ? localText(`Speaker: ${outputs[nextIndex].label || nextIndex + 1}`, `Speaker: ${outputs[nextIndex].label || nextIndex + 1}`) : localText('Default speaker ব্যবহার হচ্ছে। Volume device থেকে বদলান।', 'Using the default speaker. Change volume on your device.'))
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : localText('Speaker বদলানো যায়নি।', 'Could not change the speaker.'))
+    }
   }
   const formatDuration = (value: number) => `${Math.floor(value / 60).toString().padStart(2, '0')}:${(value % 60).toString().padStart(2, '0')}`
   const statusText = callStatus === 'ringing' ? activeCall?.direction === 'outgoing' ? localText('কল করা হচ্ছে…', 'Calling…') : localText('সংযোগ হচ্ছে…', 'Connecting…')
     : callStatus === 'connecting' ? localText('সংযোগ করা হচ্ছে…', 'Connecting…')
       : callStatus === 'connected' ? formatDuration(seconds)
-        : callStatus === 'reconnecting' ? localText('আবার সংযোগ হচ্ছে…', 'Reconnecting…') : localText('ইন্টারনেট আছে, তবে কলের সরাসরি সংযোগ তৈরি হয়নি। দুইজন একই Wi-Fi-তে চেষ্টা করুন।', 'Your internet may be working, but the direct call link could not be made. Try with both devices on the same Wi-Fi.')
+        : callStatus === 'reconnecting' ? localText('আবার সংযোগ হচ্ছে…', 'Reconnecting…') : localText('ইন্টারনেট সচল থাকতে পারে, তবে কল সেবায় সংযোগ হয়নি। আবার চেষ্টা করুন।', 'Your internet may be working, but the call service could not connect. Please try again.')
 
   const onDragStart = (event: React.PointerEvent<HTMLElement>) => {
     if ((event.target as HTMLElement).closest('button')) return
@@ -421,17 +566,20 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
         <header><div><small>{localText('যেকোনো সময়', 'ANYTIME')}</small><h2>{localText('অডিও বা ভিডিও কল', 'Audio or video call')}</h2></div><button className="academy-call-close" onClick={() => setContactsOpen(false)} aria-label={localText('বন্ধ করুন', 'Close')}>×</button></header>
         <p>{profile.role === 'admin' ? localText('শিক্ষার্থী নির্বাচন করে audio বা video call করুন।', 'Choose a student for an audio or video call.') : localText('একাডেমি Admin-কে audio বা video call করুন।', 'Call an academy administrator by audio or video.')}</p>
         {notice && <div className="academy-call-notice" role="status">{notice}</div>}
-        <div className="academy-call-contact-list">
+        <div className="academy-call-tabs"><button className={callTab === 'contacts' ? 'active' : ''} onClick={() => setCallTab('contacts')}>{localText('কল করুন', 'Call someone')}</button><button className={callTab === 'history' ? 'active' : ''} onClick={() => { setCallTab('history'); void loadCallHistory() }}>{localText('কলের ইতিহাস', 'Call history')}</button></div>
+        {profile.role === 'admin' && usage && <div className="academy-call-usage"><div><b>{localText('এই মাসের ব্যবহার', 'This month')}</b><span>{usage.participant_minutes.toLocaleString()} / {usage.monthly_limit.toLocaleString()} {localText('অংশগ্রহণকারী-মিনিট', 'participant minutes')}</span></div><div className="academy-call-usage-bar"><i style={{ width: `${Math.min(100, usage.participant_minutes / usage.monthly_limit * 100)}%` }}/></div>{usage.participant_minutes >= usage.monthly_limit * .8 && <small className="usage-warning">{localText('মাসিক সীমার কাছাকাছি—Daily.co account-এ ব্যবহার দেখুন।', 'Near the monthly limit—check usage in the Daily.co account.')}</small>}<div className="academy-call-limit"><label>{localText('মাসিক সীমা', 'Monthly limit')}<input type="number" min="1" max="10000000" value={usageLimitDraft} onChange={event => setUsageLimitDraft(event.target.value)}/></label><button onClick={() => void saveUsageLimit()}>{localText('সংরক্ষণ', 'Save')}</button></div></div>}
+        {callTab === 'contacts' ? <div className="academy-call-contact-list">
           {contactsLoading ? <div className="academy-call-empty">{localText('তালিকা লোড হচ্ছে…', 'Loading contacts…')}</div>
             : contacts.length ? contacts.map(contact => <article className="academy-call-contact" key={contact.user_id}>
               <span className="academy-call-avatar">{Array.from(contact.full_name)[0] || (contact.role === 'admin' ? 'A' : 'শ')}</span>
-              <div className="academy-call-contact-name"><b>{contact.full_name}</b><small>{contact.role === 'admin' ? localText('একাডেমি Admin', 'Academy admin') : localText('শিক্ষার্থী', 'Student')}</small></div>
+              <div className="academy-call-contact-name"><b>{contact.full_name}</b><small>{contact.role === 'admin' ? localText('একাডেমি Admin', 'Academy admin') : localText('শিক্ষার্থী', 'Student')} · {onlineContacts.has(contact.user_id) ? localText('অনলাইন', 'Online') : localText('অফলাইন', 'Offline')}</small></div>
               <button className="academy-call-mode audio" disabled={Boolean(busy)} onClick={() => void startCall(contact, 'audio')} aria-label={`${localText('অডিও কল করুন', 'Start audio call')} ${contact.full_name}`} title={localText('অডিও কল', 'Audio call')}>☎</button>
               <button className="academy-call-mode video" disabled={Boolean(busy)} onClick={() => void startCall(contact, 'video')} aria-label={`${localText('ভিডিও কল করুন', 'Start video call')} ${contact.full_name}`} title={localText('ভিডিও কল', 'Video call')}>▣</button>
             </article>)
               : <div className="academy-call-empty">{localText('এখন কল করার মতো সক্রিয় account নেই।', 'No active call contacts are available.')}</div>}
-        </div>
-        <footer><span>🔒</span> {localText('অন্যজন app খোলা রেখে sign in করে থাকলে কলটি পৌঁছাবে।', 'The other person must have the app open and be signed in.')}</footer>
+        </div> : <div className="academy-call-history-list">{historyLoading ? <div className="academy-call-empty">{localText('ইতিহাস লোড হচ্ছে…', 'Loading history…')}</div> : history.length ? history.map(item => <article key={item.id}><span className={`history-mark ${item.call_type}`}>{item.call_type === 'video' ? '▣' : '☎'}</span><div><b>{item.caller_id === profile.id ? item.callee_name : item.caller_name}</b><small>{new Date(item.created_at).toLocaleString(language === 'en' ? 'en-US' : 'bn-BD')} · {item.duration_seconds ? formatDuration(item.duration_seconds).replace(/^0:/, '') : ''}</small></div><em>{item.status === 'ended' ? localText('সম্পন্ন', 'Completed') : item.status === 'missed' ? localText('মিসড', 'Missed') : item.status === 'rejected' ? localText('প্রত্যাখ্যাত', 'Rejected') : item.status === 'failed' ? localText('ব্যর্থ', 'Failed') : item.status}</em></article>) : <div className="academy-call-empty">{localText('এখনও কোনো কলের ইতিহাস নেই।', 'There is no call history yet.')}</div>}</div>}
+        <div className="academy-call-push"><div><b>{localText('কলের notification', 'Call notifications')}</b><small>{localText('App বন্ধ বা background-এ থাকলেও incoming call-এর খবর পান।', 'Get incoming call alerts when the app is in the background.')}</small></div><button disabled={pushBusy || pushState === 'unsupported'} onClick={() => void enableCallPush()}>{pushBusy ? '…' : pushState === 'enabled' ? localText('বন্ধ করুন', 'Turn off') : pushState === 'unsupported' ? localText('সমর্থিত নয়', 'Unavailable') : localText('চালু করুন', 'Enable')}</button></div>
+        <footer><span>🔒</span> {localText('কলের media Daily.co পরিচালনা করে; app বন্ধ থাকলে notification browser-এর সমর্থনের ওপর নির্ভর করে।', 'Daily.co carries call media; notifications while closed depend on browser support.')}</footer>
       </section>, document.body)}
     </div>
 
@@ -465,6 +613,7 @@ export default function VideoCallManager({ profile }: { profile: AcademyProfile 
         </div>
         <div className="academy-call-controls">
           <button className={!micEnabled ? 'muted' : ''} onClick={toggleMic} title={micEnabled ? localText('মাইক বন্ধ করুন', 'Mute microphone') : localText('মাইক চালু করুন', 'Unmute microphone')} aria-label={micEnabled ? localText('মাইক বন্ধ করুন', 'Mute microphone') : localText('মাইক চালু করুন', 'Unmute microphone')}><span>{micEnabled ? '♬' : '×'}</span><small>{micEnabled ? localText('মাইক', 'Mic') : localText('বন্ধ', 'Muted')}</small></button>
+          <button onClick={() => void cycleSpeaker()} title={localText('Speaker বদলান', 'Change speaker output')} aria-label={localText('Speaker বদলান', 'Change speaker output')}><span>◖</span><small>{localText('Speaker', 'Speaker')}</small></button>
           {activeCall.mode === 'video' && localStream?.getVideoTracks().length ? <button className={!cameraEnabled ? 'muted' : ''} onClick={toggleCamera} title={cameraEnabled ? localText('Camera বন্ধ করুন', 'Turn camera off') : localText('Camera চালু করুন', 'Turn camera on')} aria-label={cameraEnabled ? localText('Camera বন্ধ করুন', 'Turn camera off') : localText('Camera চালু করুন', 'Turn camera on')}><span>{cameraEnabled ? '▣' : '×'}</span><small>{cameraEnabled ? localText('Camera', 'Camera') : localText('বন্ধ', 'Off')}</small></button> : null}
           <button className="academy-hangup" onClick={() => void hangup()} title={localText('কল শেষ করুন', 'End call')} aria-label={localText('কল শেষ করুন', 'End call')}>☎</button>
         </div>
