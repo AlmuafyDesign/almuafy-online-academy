@@ -1,31 +1,26 @@
 # আলমুয়াফী অনলাইন একাডেমি
 
-বাংলা ভাষার একাডেমি অ্যাডমিন ড্যাশবোর্ডের responsive frontend prototype। বর্তমানে ড্যাশবোর্ডে উদাহরণস্বরূপ mock data রয়েছে; authentication, database ও backend যুক্ত করা হয়নি।
+বাংলা-প্রথম অনলাইন একাডেমি ও শিক্ষার্থী ব্যবস্থাপনা PWA। অ্যাপে নমুনা শিক্ষার্থী, ক্লাস, উপস্থিতি বা নোটিশ নেই; কনটেন্ট Supabase ডেটাবেজে যোগ হলে তবেই দেখাবে।
 
-## Local development
+## চালানো
 
 ```sh
 npm install
 npm run dev
 ```
 
-Production build:
+## Supabase সংযোগ
 
-```sh
-npm run build
-```
+`.env.example` অনুসারে `.env.local` তৈরি করে Supabase Project URL এবং public anon key দিন। কখনো `service_role` key ব্রাউজার বা GitHub Pages build-এ দেবেন না।
 
-## GitHub Pages
+`supabase/migrations/20261112010000_academy_core.sql` SQL Editor-এ একবার চালালে কোর টেবিল, RLS এবং নিরাপদ default policy তৈরি হয়। এটি কোনো seed data যোগ করে না। প্রথম মালিকের verified account তৈরি হওয়ার পর `supabase/provision-admin.template.sql`-এর placeholder SQL Editor-এ ব্যক্তিগতভাবে বদলে admin role দিন।
 
-এই repository-র Pages deployment GitHub Actions দিয়ে build ও publish হয়। Repository Settings → Pages-এ source হিসেবে **GitHub Actions** নির্বাচন করুন। Build output `dist/` Pages-এ প্রকাশিত হয়।
+## GitHub Pages ও ফোনে ইনস্টল
 
-## বর্তমান সীমা
+GitHub Actions `main` branch থেকে `dist/` publish করে। Repository Actions variables-এ `VITE_SUPABASE_URL` এবং `VITE_SUPABASE_ANON_KEY` যোগ না করলে public static site দেখা যাবে, কিন্তু authentication/database চালু হবে না।
 
-- পরিসংখ্যান ও কার্যক্রম demo data।
-- লগইন, Supabase, API বা role-based authorization এখনো যুক্ত নয়।
-- Web app manifest ও academy icon আছে; offline service worker এখনো নেই।
-- বাংলা UI-তে Bornomala Regular/Bold ব্যবহার করা হয়েছে; font files are licensed under the SIL Open Font License.
+HTTPS-এ Android Chrome দিয়ে সাইট খুলে **অ্যাপ ইনস্টল** বা Chrome menu → **Install app / Add to Home screen** ব্যবহার করুন। Logo, standalone manifest, Bornomala font ও app shell offline cache দেওয়া আছে। Supabase API বা ব্যক্তিগত তথ্য offline cache হয় না।
 
 ## Font attribution
 
-Bornomala was designed by Jayed Ahsan Saad. Font files are sourced from [Bangla Web Fonts](https://banglawebfonts.pages.dev/font/bornomala/) and redistributed under the [SIL Open Font License](https://openfontlicense.org/).
+Bornomala designed by Jayed Ahsan Saad, sourced from [Bangla Web Fonts](https://banglawebfonts.pages.dev/font/bornomala/) and distributed under the [SIL Open Font License](https://openfontlicense.org/).
