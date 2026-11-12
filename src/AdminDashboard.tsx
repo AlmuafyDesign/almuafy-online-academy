@@ -25,9 +25,9 @@ type ClassSession = { id: string; title: string; starts_at: string; duration_min
 type DashboardData = { students: number | null; classes: number | null; homework: number | null; sessions: ClassSession[]; attendance: { present: number; total: number } | null; notice: { title: string; description: string; published_at: string | null } | null; activities: { id: string; action: string; entity_type: string; created_at: string }[] }
 const EMPTY: DashboardData = { students: null, classes: null, homework: null, sessions: [], attendance: null, notice: null, activities: [] }
 const navGroups: { title: string; items: { label: string; icon: IconName }[] }[] = [
-  { title: 'একাডেমি', items: [{ label: 'ড্যাশবোর্ড', icon: 'grid' }, { label: 'শিক্ষার্থী', icon: 'users' }, { label: 'ক্লাস ও পাঠ', icon: 'book' }, { label: 'সময়সূচি', icon: 'calendar' }, { label: 'উপস্থিতি', icon: 'check' }] },
-  { title: 'শেখার উপকরণ', items: [{ label: 'দৈনিক পাঠ', icon: 'book' }, { label: 'হোমওয়ার্ক', icon: 'check' }, { label: 'লাইব্রেরি', icon: 'layers' }] },
-  { title: 'পরিচালনা', items: [{ label: 'নোটিশ', icon: 'bell' }, { label: 'সেটিংস', icon: 'settings' }] },
+  { title: 'একাডেমি', items: [{ label: 'ড্যাশবোর্ড', icon: 'grid' }, { label: 'শিক্ষার্থী', icon: 'users' }, { label: 'ভর্তি ব্যবস্থাপনা', icon: 'users' }, { label: 'ক্লাস ও পাঠ', icon: 'book' }, { label: 'সময়সূচি', icon: 'calendar' }, { label: 'উপস্থিতি', icon: 'check' }] },
+  { title: 'শেখার উপকরণ', items: [{ label: 'দৈনিক পাঠ', icon: 'book' }, { label: 'পাঠের উপকরণ', icon: 'arrow' }, { label: 'হোমওয়ার্ক', icon: 'check' }, { label: 'হোমওয়ার্ক মূল্যায়ন', icon: 'check' }, { label: 'লাইব্রেরি বিভাগ', icon: 'layers' }, { label: 'লাইব্রেরি', icon: 'layers' }] },
+  { title: 'পরিচালনা', items: [{ label: 'নোটিশ', icon: 'bell' }, { label: 'শিক্ষার্থী বিজ্ঞপ্তি', icon: 'bell' }, { label: 'কার্যক্রম লগ', icon: 'clock' }, { label: 'সেটিংস', icon: 'settings' }] },
 ]
 function dhakaDayBounds() { const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()); const part = (type: string) => parts.find(item => item.type === type)?.value ?? ''; const day = `${part('year')}-${part('month')}-${part('day')}`; return { start: new Date(`${day}T00:00:00+06:00`).toISOString(), end: new Date(`${day}T00:00:00+06:00`).getTime() + 86_400_000 } }
 function bnDate(value: string, options?: Intl.DateTimeFormatOptions) { return new Intl.DateTimeFormat('bn-BD', { timeZone: 'Asia/Dhaka', ...options }).format(new Date(value)) }
@@ -167,12 +167,16 @@ function AcademySettings({ profile }: { profile: AcademyProfile }) {
 }
 
 type ManagerField = { key: string; label: string; type?: 'text' | 'email' | 'tel' | 'url' | 'textarea' | 'date' | 'datetime-local' | 'number' | 'select' | 'checkbox'; required?: boolean; options?: { value: string; label: string }[]; hint?: string }
-type ManagerConfig = { table: string; titleKeys: string[]; detailKeys: string[]; fields: ManagerField[]; create?: boolean }
+type ManagerConfig = { table: string; titleKeys: string[]; detailKeys: string[]; fields: ManagerField[]; create?: boolean; editable?: boolean }
 const statusOptions = (values: string[]) => values.map(value => ({ value, label: ({ active: 'সক্রিয়', inactive: 'নিষ্ক্রিয়', archived: 'আর্কাইভ', draft: 'খসড়া', published: 'প্রকাশিত', scheduled: 'নির্ধারিত', live: 'চলমান', completed: 'সম্পন্ন', cancelled: 'বাতিল', present: 'উপস্থিত', absent: 'অনুপস্থিত', late: 'দেরি', pending: 'অপেক্ষমাণ' } as Record<string, string>)[value] ?? value }))
 const moduleConfigs: Record<string, ManagerConfig> = {
   'শিক্ষার্থী': { table: 'profiles', create: false, titleKeys: ['full_name', 'email'], detailKeys: ['phone', 'status'], fields: [
     { key: 'full_name', label: 'পূর্ণ নাম', required: true }, { key: 'phone', label: 'ফোন', type: 'tel' },
     { key: 'status', label: 'অ্যাকাউন্ট অবস্থা', type: 'select', options: statusOptions(['active', 'pending', 'inactive', 'blocked']), required: true },
+  ] },
+  'ভর্তি ব্যবস্থাপনা': { table: 'class_enrollments', titleKeys: ['student_id'], detailKeys: ['class_id', 'status'], fields: [
+    { key: 'class_id', label: 'ক্লাস নির্বাচন', type: 'select', required: true }, { key: 'student_id', label: 'শিক্ষার্থী নির্বাচন', type: 'select', required: true },
+    { key: 'status', label: 'ভর্তির অবস্থা', type: 'select', required: true, options: statusOptions(['pending', 'active', 'inactive']) },
   ] },
   'ক্লাস ও পাঠ': { table: 'classes', titleKeys: ['name'], detailKeys: ['subject', 'level', 'status'], fields: [
     { key: 'name', label: 'ক্লাসের নাম', required: true }, { key: 'subject', label: 'বিষয়', required: true }, { key: 'level', label: 'শ্রেণি বা স্তর' },
@@ -185,7 +189,7 @@ const moduleConfigs: Record<string, ManagerConfig> = {
     { key: 'meeting_url', label: 'ক্লাস লিংক', type: 'url', hint: 'এখনকার বাহ্যিক মিটিং লিংক; ইন-অ্যাপ ভিডিও কল পরে যুক্ত হবে।' },
     { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['scheduled', 'live', 'completed', 'cancelled']) },
   ] },
-  'উপস্থিতি': { table: 'attendance', titleKeys: ['status'], detailKeys: ['note', 'recorded_at'], fields: [
+  'উপস্থিতি': { table: 'attendance', titleKeys: ['status'], detailKeys: ['student_id', 'session_id', 'note', 'recorded_at'], fields: [
     { key: 'session_id', label: 'ক্লাস সেশন', type: 'select', required: true }, { key: 'student_id', label: 'শিক্ষার্থী', type: 'select', required: true },
     { key: 'status', label: 'উপস্থিতির অবস্থা', type: 'select', required: true, options: statusOptions(['present', 'absent', 'late']) }, { key: 'note', label: 'মন্তব্য', type: 'textarea' },
   ] },
@@ -194,13 +198,23 @@ const moduleConfigs: Record<string, ManagerConfig> = {
     { key: 'description', label: 'পাঠের বিবরণ', type: 'textarea' }, { key: 'lesson_date', label: 'পাঠের তারিখ', type: 'date', required: true },
     { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['draft', 'published', 'archived']) },
   ] },
+  'পাঠের উপকরণ': { table: 'lesson_links', titleKeys: ['label'], detailKeys: ['lesson_id', 'url'], fields: [
+    { key: 'lesson_id', label: 'প্রকাশিত পাঠ নির্বাচন', type: 'select', required: true }, { key: 'label', label: 'লিংকের নাম', required: true }, { key: 'url', label: 'বাহ্যিক লিংক', type: 'url', required: true },
+  ] },
   'হোমওয়ার্ক': { table: 'homework', titleKeys: ['title'], detailKeys: ['due_at', 'status'], fields: [
     { key: 'class_id', label: 'ক্লাস নির্বাচন', type: 'select', required: true }, { key: 'title', label: 'হোমওয়ার্কের শিরোনাম', required: true },
     { key: 'instructions', label: 'নির্দেশনা', type: 'textarea' }, { key: 'due_at', label: 'জমা দেওয়ার শেষ সময়', type: 'datetime-local' },
     { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['draft', 'published', 'closed', 'archived']) },
   ] },
+  'হোমওয়ার্ক মূল্যায়ন': { table: 'homework_submissions', create: false, titleKeys: ['answer_text', 'id'], detailKeys: ['student_id', 'homework_id', 'status', 'marks', 'submitted_at'], fields: [
+    { key: 'status', label: 'মূল্যায়নের অবস্থা', type: 'select', required: true, options: statusOptions(['submitted', 'reviewed', 'completed', 'needs_revision']) },
+    { key: 'marks', label: 'নম্বর (০–১০০)', type: 'number' }, { key: 'teacher_feedback', label: 'শিক্ষকের মতামত', type: 'textarea' },
+  ] },
+  'লাইব্রেরি বিভাগ': { table: 'library_categories', titleKeys: ['name'], detailKeys: ['slug', 'sort_order'], fields: [
+    { key: 'name', label: 'বিভাগের নাম', required: true }, { key: 'slug', label: 'লিংক নাম (ইংরেজি)', required: true }, { key: 'sort_order', label: 'ক্রম', type: 'number' },
+  ] },
   'লাইব্রেরি': { table: 'library_resources', titleKeys: ['title'], detailKeys: ['resource_url', 'status'], fields: [
-    { key: 'title', label: 'উপকরণের নাম', required: true }, { key: 'resource_url', label: 'লিংক', type: 'url', required: true },
+    { key: 'category_id', label: 'বিভাগ (ঐচ্ছিক)', type: 'select' }, { key: 'title', label: 'উপকরণের নাম', required: true }, { key: 'resource_url', label: 'লিংক', type: 'url', required: true },
     { key: 'description', label: 'বিবরণ', type: 'textarea' }, { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['draft', 'published', 'archived']) },
   ] },
   'নোটিশ': { table: 'notices', titleKeys: ['title'], detailKeys: ['visibility', 'priority', 'status'], fields: [
@@ -210,8 +224,14 @@ const moduleConfigs: Record<string, ManagerConfig> = {
     { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['draft', 'published', 'archived']) },
     { key: 'expires_at', label: 'মেয়াদ শেষ', type: 'datetime-local' },
   ] },
+  'শিক্ষার্থী বিজ্ঞপ্তি': { table: 'notifications', titleKeys: ['title'], detailKeys: ['kind', 'created_at'], fields: [
+    { key: 'user_id', label: 'শিক্ষার্থী নির্বাচন', type: 'select', required: true }, { key: 'title', label: 'বিজ্ঞপ্তির শিরোনাম', required: true },
+    { key: 'body', label: 'বিজ্ঞপ্তির লেখা', type: 'textarea', required: true }, { key: 'kind', label: 'ধরন', required: true }, { key: 'href', label: 'অ্যাপের ভেতরের পথ (ঐচ্ছিক)' },
+  ] },
+  'কার্যক্রম লগ': { table: 'activity_logs', create: false, editable: false, titleKeys: ['action'], detailKeys: ['entity_type', 'created_at'], fields: [] },
 }
-const managerTitles: Record<string, string> = { full_name: 'নাম', email: 'ইমেইল', name: 'ক্লাস', title: 'শিরোনাম', status: 'অবস্থা', starts_at: 'শুরু', lesson_date: 'তারিখ', due_at: 'জমার শেষ সময়', resource_url: 'উপকরণের লিংক', note: 'মন্তব্য', description: 'বিবরণ', phone: 'ফোন', subject: 'বিষয়', level: 'স্তর', visibility: 'দর্শক', priority: 'গুরুত্ব', recorded_at: 'নথিভুক্ত' }
+const managerTitles: Record<string, string> = { full_name: 'নাম', email: 'ইমেইল', name: 'ক্লাস', title: 'শিরোনাম', status: 'অবস্থা', starts_at: 'শুরু', lesson_date: 'তারিখ', due_at: 'জমার শেষ সময়', resource_url: 'উপকরণের লিংক', note: 'মন্তব্য', description: 'বিবরণ', phone: 'ফোন', subject: 'বিষয়', level: 'স্তর', visibility: 'দর্শক', priority: 'গুরুত্ব', recorded_at: 'নথিভুক্ত', created_at: 'যোগের সময়', submitted_at: 'জমার সময়', student_id: 'শিক্ষার্থী', session_id: 'ক্লাস সেশন', homework_id: 'হোমওয়ার্ক', marks: 'নম্বর', kind: 'ধরন', slug: 'লিংক নাম', sort_order: 'ক্রম' }
+const statusLabels: Record<string, string> = { active: 'সক্রিয়', inactive: 'নিষ্ক্রিয়', pending: 'অপেক্ষমাণ', blocked: 'বন্ধ', archived: 'আর্কাইভ', draft: 'খসড়া', published: 'প্রকাশিত', scheduled: 'নির্ধারিত', live: 'চলমান', completed: 'সম্পন্ন', cancelled: 'বাতিল', present: 'উপস্থিত', absent: 'অনুপস্থিত', late: 'দেরি', submitted: 'জমা হয়েছে', reviewed: 'পর্যালোচিত', needs_revision: 'সংশোধন দরকার', closed: 'বন্ধ', important: 'জরুরি', normal: 'সাধারণ', public: 'সবার জন্য', students: 'শিক্ষার্থীদের জন্য', all_users: 'লগইন করা সবাই' }
 function inputDate(value: unknown, dateOnly = false) {
   if (!value) return ''
   const date = new Date(String(value))
@@ -235,7 +255,8 @@ function ModuleManager({ active, profile, query }: { active: string; profile: Ac
     async function load() {
       if (!supabase) { setError('Supabase সংযোগ সেট করা নেই।'); setLoading(false); return }
       setLoading(true); setError('')
-      const { data, error: loadError } = await supabase.from(config.table).select('*').order('created_at', { ascending: false }).limit(100)
+      const orderColumn = ({ class_enrollments: 'enrolled_at', attendance: 'recorded_at', homework_submissions: 'submitted_at' } as Record<string, string>)[config.table] ?? 'created_at'
+      const { data, error: loadError } = await supabase.from(config.table).select('*').order(orderColumn, { ascending: false }).limit(100)
       if (!live) return
       if (loadError) setError('তথ্য লোড হয়নি। ডেটাবেজ সংযোগ ও অনুমতি যাচাই করুন।')
       setRows(data ?? [])
@@ -244,13 +265,31 @@ function ModuleManager({ active, profile, query }: { active: string; profile: Ac
         const { data: classes } = await supabase.from('classes').select('id,name,subject').order('name')
         refs.class_id = (classes ?? []).map((item: any) => ({ value: item.id, label: `${item.name} · ${item.subject}` }))
       }
-      if (config.fields.some(field => field.key === 'session_id')) {
-        const [{ data: sessions }, { data: students }] = await Promise.all([
-          supabase.from('class_sessions').select('id,title,starts_at').order('starts_at', { ascending: false }).limit(100),
-          supabase.from('profiles').select('id,full_name,email').eq('role', 'student').order('full_name').limit(100),
+      if (config.fields.some(field => field.key === 'category_id')) {
+        const { data: categories } = await supabase.from('library_categories').select('id,name').order('sort_order')
+        refs.category_id = (categories ?? []).map((item: any) => ({ value: item.id, label: item.name }))
+      }
+      if (config.fields.some(field => field.key === 'lesson_id')) {
+        const { data: lessons } = await supabase.from('daily_lessons').select('id,title,lesson_date').order('lesson_date', { ascending: false }).limit(100)
+        refs.lesson_id = (lessons ?? []).map((item: any) => ({ value: item.id, label: `${item.title} · ${item.lesson_date}` }))
+      }
+      if (config.fields.some(field => field.key === 'student_id') || config.fields.some(field => field.key === 'user_id')) {
+        const { data: students } = await supabase.from('profiles').select('id,full_name,email').eq('role', 'student').order('full_name').limit(300)
+        const options = (students ?? []).map((item: any) => ({ value: item.id, label: item.full_name || item.email || item.id }))
+        if (config.fields.some(field => field.key === 'student_id')) refs.student_id = options
+        if (config.fields.some(field => field.key === 'user_id')) refs.user_id = options
+      }
+      if (config.table === 'homework_submissions') {
+        const [{ data: students }, { data: assignments }] = await Promise.all([
+          supabase.from('profiles').select('id,full_name,email').eq('role', 'student').order('full_name').limit(300),
+          supabase.from('homework').select('id,title').order('created_at', { ascending: false }).limit(300),
         ])
-        refs.session_id = (sessions ?? []).map((item: any) => ({ value: item.id, label: `${item.title} · ${inputDate(item.starts_at)}` }))
         refs.student_id = (students ?? []).map((item: any) => ({ value: item.id, label: item.full_name || item.email || item.id }))
+        refs.homework_id = (assignments ?? []).map((item: any) => ({ value: item.id, label: item.title }))
+      }
+      if (config.fields.some(field => field.key === 'session_id')) {
+        const { data: sessions } = await supabase.from('class_sessions').select('id,title,starts_at').order('starts_at', { ascending: false }).limit(100)
+        refs.session_id = (sessions ?? []).map((item: any) => ({ value: item.id, label: `${item.title} · ${inputDate(item.starts_at)}` }))
       }
       if (live) { setReferences(refs); setLoading(false) }
     }
@@ -276,7 +315,7 @@ function ModuleManager({ active, profile, query }: { active: string; profile: Ac
       let value = form[field.key]
       if (field.type === 'checkbox') payload[field.key] = Boolean(value)
       else if (field.type === 'datetime-local') payload[field.key] = value ? new Date(String(value)).toISOString() : null
-      else if (field.type === 'number') payload[field.key] = value ? Number(value) : 45
+      else if (field.type === 'number') payload[field.key] = value ? Number(value) : field.key === 'duration_minutes' ? 45 : field.key === 'sort_order' ? 0 : null
       else payload[field.key] = String(value ?? '').trim() || null
     }
     if (!editing && ['classes', 'class_sessions', 'daily_lessons', 'homework', 'library_resources', 'notices'].includes(config.table)) payload.created_by = profile.id
@@ -286,15 +325,18 @@ function ModuleManager({ active, profile, query }: { active: string; profile: Ac
     const result = editing ? await supabase.from(config.table).update(payload).eq('id', editing.id) : await supabase.from(config.table).insert(payload)
     setSaving(false)
     if (result.error) { setError('সংরক্ষণ হয়নি। আবশ্যক তথ্য, সংযোগ এবং অ্যাডমিন অনুমতি যাচাই করুন।'); return }
+    const entityId = editing?.id ?? null
+    void supabase.from('activity_logs').insert({ actor_id: profile.id, action: editing ? 'পরিবর্তন' : 'নতুন রেকর্ড', entity_type: config.table, entity_id: entityId ?? null, details: { label: active } })
     setMessage(editing ? 'পরিবর্তন সংরক্ষিত হয়েছে।' : 'নতুন রেকর্ড যোগ হয়েছে.')
     setEditing(null); setForm({}); setReload(count => count + 1)
   }
   const visibleRows = rows.filter(row => JSON.stringify(row).toLowerCase().includes(query.toLowerCase()))
   const labelFor = (field: ManagerField) => field.options ?? references[field.key] ?? []
+  const displayValue = (key: string, value: any) => references[key]?.find(option => option.value === value)?.label ?? statusLabels[String(value)] ?? String(value)
   return <section className="premium-module"><div className="premium-section-title"><div><div className="premium-date"><span/> একাডেমি পরিচালনা</div><h2>{active}</h2><p>রেকর্ড যোগ করুন, পরিবর্তন করুন ও প্রকাশনার অবস্থা নিয়ন্ত্রণ করুন।</p></div><span className="live-pill"><i/> লাইভ ডেটা</span></div>
     {error && <div className="premium-alert" role="status">{error}</div>}{message && <div className="advanced-feedback" role="status">{message}</div>}
     <article className="premium-panel manager-panel"><div className="manager-toolbar"><div className="module-summary"><span className="panel-symbol teal"><Icon name={navGroups.flatMap(group => group.items).find(item => item.label === active)?.icon ?? 'grid'} size={18}/></span><div><b>{active} পরিচালনা</b><small>{loading ? 'তথ্য পড়া হচ্ছে…' : `${bnNumber(visibleRows.length)}টি রেকর্ড`}</small></div></div>{config.create !== false && <button className="premium-add manager-add" onClick={() => begin()}><Icon name="plus" size={16}/> নতুন যোগ করুন</button>}</div>
       {editing && <form className="manager-form" onSubmit={save}><div className="manager-form-head"><h3>{editing.id ? 'রেকর্ড পরিবর্তন' : 'নতুন রেকর্ড'}</h3><button type="button" onClick={() => { setEditing(null); setForm({}) }}>বন্ধ করুন</button></div><div className="manager-fields">{config.fields.map(field => <label className={`advanced-field ${field.type === 'checkbox' ? 'manager-checkbox' : ''}`} key={field.key}><span>{field.label}</span>{field.type === 'textarea' ? <textarea required={field.required} value={String(form[field.key] ?? '')} onChange={event => setValue(field.key, event.target.value)} rows={3}/> : field.type === 'select' ? <select required={field.required} value={String(form[field.key] ?? '')} onChange={event => setValue(field.key, event.target.value)}><option value="">নির্বাচন করুন</option>{labelFor(field).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : field.type === 'checkbox' ? <input type="checkbox" checked={Boolean(form[field.key])} onChange={event => setValue(field.key, event.target.checked)}/> : <input type={field.type ?? 'text'} required={field.required} min={field.type === 'number' ? 1 : undefined} max={field.key === 'duration_minutes' ? 600 : undefined} value={String(form[field.key] ?? '')} onChange={event => setValue(field.key, event.target.value)} />}{field.hint && <small>{field.hint}</small>}</label>)}</div><div className="manager-form-actions"><button type="button" className="manager-cancel" onClick={() => { setEditing(null); setForm({}) }}>বাতিল</button><button className="premium-add" type="submit" disabled={saving}>{saving ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ করুন'}</button></div></form>}
-      {loading ? <Empty label="তথ্য লোড হচ্ছে…"/> : visibleRows.length ? <div className="manager-list">{visibleRows.map(row => <div className="manager-row" key={row.id}><div><b>{config.titleKeys.map(key => row[key]).find(Boolean) || row.id}</b><small>{config.detailKeys.map(key => { const value = row[key]; if (value == null || value === '') return null; return `${managerTitles[key] ?? key}: ${key.endsWith('_at') || key === 'lesson_date' ? inputDate(value, key === 'lesson_date') : String(value)}` }).filter(Boolean).join(' · ')}</small></div><button onClick={() => begin(row)}>পরিবর্তন</button></div>)}</div> : <Empty label={query ? 'এই অনুসন্ধানে কোনো রেকর্ড নেই।' : `এখনো ${active} রেকর্ড নেই।`} />}</article>
+      {loading ? <Empty label="তথ্য লোড হচ্ছে…"/> : visibleRows.length ? <div className="manager-list">{visibleRows.map(row => <div className="manager-row" key={row.id}><div><b>{config.titleKeys.map(key => row[key] ? displayValue(key, row[key]) : '').find(Boolean) || row.id}</b><small>{config.detailKeys.map(key => { const value = row[key]; if (value == null || value === '') return null; return `${managerTitles[key] ?? key}: ${key.endsWith('_at') || key === 'lesson_date' ? inputDate(value, key === 'lesson_date') : displayValue(key, value)}` }).filter(Boolean).join(' · ')}</small></div>{config.editable !== false && <button onClick={() => begin(row)}>পরিবর্তন</button>}</div>)}</div> : <Empty label={query ? 'এই অনুসন্ধানে কোনো রেকর্ড নেই।' : `এখনো ${active} রেকর্ড নেই।`} />}</article>
   </section>
 }

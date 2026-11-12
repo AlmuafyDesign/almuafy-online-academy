@@ -16,6 +16,7 @@ export type AcademyProfile = {
   email: string | null
   full_name: string
   phone: string | null
+  address: string | null
   role: AcademyRole
   status: 'active' | 'inactive' | 'blocked' | 'pending'
 }
