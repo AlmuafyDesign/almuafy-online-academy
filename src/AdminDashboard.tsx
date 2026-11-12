@@ -107,14 +107,12 @@ export default function AdminDashboard({ profile, onSignOut }: { profile: Academ
 function Empty({ label }: { label: string }) { return <div className="premium-empty"><span>✦</span><p>{label}</p></div> }
 
 type AcademySettingsRecord = {
-  academy_name: string; description: string; teacher_name: string; teacher_bio: string;
-  teacher_photo_url: string; qualifications: string; teaching_experience: string;
+  academy_name: string; description: string;
   contact_email: string; contact_phone: string; facebook: string; youtube: string;
   footer_text: string;
 }
 const EMPTY_SETTINGS: AcademySettingsRecord = {
-  academy_name: '', description: '', teacher_name: '', teacher_bio: '', teacher_photo_url: '',
-  qualifications: '', teaching_experience: '', contact_email: '', contact_phone: '',
+  academy_name: '', description: '', contact_email: '', contact_phone: '',
   facebook: '', youtube: '', footer_text: '',
 }
 function AcademySettings({ profile }: { profile: AcademyProfile }) {
@@ -131,9 +129,7 @@ function AcademySettings({ profile }: { profile: AcademyProfile }) {
       if (!live) return
       if (loadError) setError('একাডেমির সেটিংস পড়া যায়নি। ডেটাবেজ সংযোগ ও অনুমতি যাচাই করুন।')
       if (data) setForm({
-        academy_name: data.academy_name ?? '', description: data.description ?? '', teacher_name: data.teacher_name ?? '',
-        teacher_bio: data.teacher_bio ?? '', teacher_photo_url: data.teacher_photo_url ?? '',
-        qualifications: (data.qualifications ?? []).join('\n'), teaching_experience: data.teaching_experience ?? '',
+        academy_name: data.academy_name ?? '', description: data.description ?? '',
         contact_email: data.contact_email ?? '', contact_phone: data.contact_phone ?? '',
         facebook: data.social_links?.facebook ?? '', youtube: data.social_links?.youtube ?? '', footer_text: data.footer_text ?? '',
       })
@@ -148,10 +144,7 @@ function AcademySettings({ profile }: { profile: AcademyProfile }) {
     if (!supabase) { setError('Supabase সংযোগ সেট করা নেই।'); setSaving(false); return }
     const payload = {
       id: 1, academy_name: form.academy_name.trim(), description: form.description.trim(),
-      teacher_name: form.teacher_name.trim(), teacher_bio: form.teacher_bio.trim(),
-      teacher_photo_url: form.teacher_photo_url.trim() || null,
-      qualifications: form.qualifications.split('\n').map(item => item.trim()).filter(Boolean),
-      teaching_experience: form.teaching_experience.trim(), contact_email: form.contact_email.trim() || null,
+      contact_email: form.contact_email.trim() || null,
       contact_phone: form.contact_phone.trim() || null,
       social_links: { facebook: form.facebook.trim(), youtube: form.youtube.trim() },
       footer_text: form.footer_text.trim(), updated_at: new Date().toISOString(),
@@ -165,7 +158,7 @@ function AcademySettings({ profile }: { profile: AcademyProfile }) {
   return <section className="premium-module advanced-settings"><div className="premium-section-title"><div><div className="premium-date"><span/> একাডেমি পরিচালনা</div><h2>অ্যাডভান্সড সেটিংস</h2><p>প্রকাশ্য সাইটে দেখানো একাডেমির তথ্য ও যোগাযোগ পরিচালনা করুন।</p></div><span className="live-pill"><i/> বাস্তব সেটিংস</span></div>
     {loading ? <article className="premium-panel"><Empty label="একাডেমির সেটিংস পড়া হচ্ছে…"/></article> : <form className="premium-panel advanced-form" onSubmit={save}>
       <div className="advanced-settings-intro"><span className="panel-symbol teal"><Icon name="settings" size={18}/></span><div><b>{profile.full_name || 'অ্যাডমিন'} · একাডেমি কনফিগারেশন</b><small>পরিবর্তন Supabase-এ সংরক্ষিত হবে এবং পাবলিক সাইটে ব্যবহৃত হবে।</small></div></div>
-      <fieldset><legend>একাডেমির পরিচিতি</legend><div className="advanced-grid">{field('একাডেমির নাম', 'academy_name')}{field('শিক্ষকের নাম', 'teacher_name')}{field('একাডেমির পরিচিতি', 'description', { multiline: true })}{field('শিক্ষকের পরিচিতি', 'teacher_bio', { multiline: true })}{field('শিক্ষকের ছবি URL', 'teacher_photo_url', { type: 'url', hint: 'HTTPS ছবির ঠিকানা দিন।' })}{field('যোগ্যতা · প্রতি লাইনে একটি', 'qualifications', { multiline: true })}{field('শিক্ষাদানের অভিজ্ঞতা', 'teaching_experience')}</div></fieldset>
+      <fieldset><legend>একাডেমির পরিচিতি</legend><div className="advanced-grid">{field('একাডেমির নাম', 'academy_name')}{field('একাডেমির পরিচিতি', 'description', { multiline: true })}</div></fieldset>
       <fieldset><legend>যোগাযোগ ও প্রকাশনা</legend><div className="advanced-grid">{field('যোগাযোগের ইমেইল', 'contact_email', { type: 'email' })}{field('যোগাযোগের ফোন', 'contact_phone', { type: 'tel' })}{field('Facebook URL', 'facebook', { type: 'url' })}{field('YouTube URL', 'youtube', { type: 'url' })}{field('ফুটারের লেখা', 'footer_text', { multiline: true })}</div></fieldset>
       {(error || message) && <div className={error ? 'advanced-feedback is-error' : 'advanced-feedback'} role="status">{error || message}</div>}
       <div className="advanced-actions"><span>সেটিংস পরিবর্তন করলে পাবলিক সাইটের তথ্যও বদলাবে।</span><button className="premium-add" type="submit" disabled={saving || !form.academy_name.trim()}>{saving ? 'সংরক্ষণ হচ্ছে…' : 'সেটিংস সংরক্ষণ করুন'}</button></div>
