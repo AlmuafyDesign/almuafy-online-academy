@@ -36,12 +36,45 @@
 .auth-page-toolbar .auth-back { padding: 9px 11px; }
 .student-top-actions .language-toggle { min-width: 94px; }
 
+/* Public academy landing page: clear hierarchy, responsive navigation and contact. */
+.real-public-complete { overflow: hidden; }
+.real-public-complete .real-public-nav { position: sticky; top: 0; z-index: 10; gap: 14px; backdrop-filter: blur(14px); background: #ffffffed; }
+.real-public-complete .real-public-nav>div { align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.real-public-links { display: flex; align-items: center; gap: clamp(8px, 1.3vw, 18px); }
+.real-public-links a,.real-footer-links a { color: #3e6572; text-decoration: none; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.real-public-links a:hover,.real-footer-links a:hover { color: #087f89; }
+.real-public-complete .real-hero { min-height: 390px; }
+.real-public-complete .real-public-section { scroll-margin-top: 92px; }
+.real-public-complete .real-section-heading { max-width: 780px; margin-bottom: 22px; }
+.real-public-complete .real-section-heading h2 { line-height: 1.3; }
+.real-public-complete .real-section-heading>p { color: #647d88; line-height: 1.8; }
+.real-public-complete .real-cards article { min-height: 118px; transition: transform .18s ease, box-shadow .18s ease; }
+.real-public-complete .real-cards article:hover { transform: translateY(-3px); box-shadow: 0 14px 28px #163e5818; }
+.real-public-complete .real-contact { display: flex; align-items: center; justify-content: space-between; gap: 32px; max-width: none; padding: 48px max(22px,calc((100vw - 1160px)/2)); background: linear-gradient(115deg,#e2f2ef,#f7f1df); }
+.real-public-complete .real-contact>div { max-width: 650px; }
+.real-public-complete .real-contact h2 { margin: 8px 0; font-size: 28px; }
+.real-public-complete .real-contact p { color: #647d88; line-height: 1.8; }
+.real-contact-links { display: grid; gap: 10px; min-width: 220px; padding: 20px; border: 1px solid #d3e4df; border-radius: 16px; background: #ffffffd9; }
+.real-contact-links a { color: #08758a; font-weight: 650; text-decoration: none; overflow-wrap: anywhere; }
+.real-contact-links span { color: #68818c; }
+.real-public-complete .real-footer { align-items: center; flex-wrap: wrap; gap: 16px; line-height: 1.7; }
+.real-footer-links { display: flex; flex-wrap: wrap; gap: 14px; }
+.real-footer-links a { color: #d5e7e9; }
+
 @media (max-width: 760px) {
   .real-public-nav { height: auto; min-height: 64px; flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
   .real-public-nav>a { flex: 1 1 100%; }
   .real-public-nav>div { width: 100%; display: flex; gap: 6px; }
   .real-public-nav button { flex: 1 1 0; min-width: 0; padding: 8px 5px; font-size: 11px; }
   .real-public-nav .language-toggle { min-width: 72px; }
+  .real-public-complete .real-public-nav { position: relative; }
+  .real-public-links { width: 100%; order: 2; overflow-x: auto; padding: 4px 1px 8px; }
+  .real-public-links a { font-size: 11px; }
+  .real-public-complete .real-public-nav>div { flex-wrap: wrap; }
+  .real-public-complete .real-public-nav>div>button { flex: 1 1 auto; }
+  .real-public-complete .real-contact { display: grid; gap: 16px; padding: 34px 18px; }
+  .real-contact-links { min-width: 0; }
+  .real-public-complete .real-footer { display: grid; gap: 12px; }
 }
 
 @media (max-width: 380px) {

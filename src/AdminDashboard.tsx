@@ -108,13 +108,18 @@ export default function AdminDashboard({ profile, onSignOut }: { profile: Academ
 function Empty({ label }: { label: string }) { return <div className="premium-empty"><span>✦</span><p>{label}</p></div> }
 
 type AcademySettingsRecord = {
-  academy_name: string; description: string; subjects: string; teaching_methodology: string; academy_features: string; online_class_steps: string;
+  academy_name: string; academy_name_en: string; description: string; description_en: string; about_text: string; about_text_en: string;
+  subjects: string; subjects_en: string; teaching_methodology: string; teaching_methodology_en: string;
+  academy_features: string; academy_features_en: string; online_class_steps: string; online_class_steps_en: string;
+  library_intro: string; library_intro_en: string; notices_intro: string; notices_intro_en: string;
   contact_email: string; contact_phone: string; facebook: string; youtube: string;
-  footer_text: string;
+  footer_text: string; footer_text_en: string;
 }
 const EMPTY_SETTINGS: AcademySettingsRecord = {
-  academy_name: '', description: '', subjects: '', teaching_methodology: '', academy_features: '', online_class_steps: '', contact_email: '', contact_phone: '',
-  facebook: '', youtube: '', footer_text: '',
+  academy_name: '', academy_name_en: '', description: '', description_en: '', about_text: '', about_text_en: '',
+  subjects: '', subjects_en: '', teaching_methodology: '', teaching_methodology_en: '', academy_features: '', academy_features_en: '',
+  online_class_steps: '', online_class_steps_en: '', library_intro: '', library_intro_en: '', notices_intro: '', notices_intro_en: '',
+  contact_email: '', contact_phone: '', facebook: '', youtube: '', footer_text: '', footer_text_en: '',
 }
 function AcademySettings({ profile }: { profile: AcademyProfile }) {
   const [form, setForm] = useState(EMPTY_SETTINGS)
@@ -130,11 +135,17 @@ function AcademySettings({ profile }: { profile: AcademyProfile }) {
       if (!live) return
       if (loadError) setError('একাডেমির সেটিংস পড়া যায়নি। ডেটাবেজ সংযোগ ও অনুমতি যাচাই করুন।')
       if (data) setForm({
-        academy_name: data.academy_name ?? '', description: data.description ?? '',
-        subjects: (data.subjects ?? []).join('\n'), teaching_methodology: data.teaching_methodology ?? '',
-        academy_features: (data.academy_features ?? []).join('\n'), online_class_steps: (data.online_class_steps ?? []).join('\n'),
+        academy_name: data.academy_name ?? '', academy_name_en: data.academy_name_en ?? '',
+        description: data.description ?? '', description_en: data.description_en ?? '',
+        about_text: data.about_text ?? '', about_text_en: data.about_text_en ?? '',
+        subjects: (data.subjects ?? []).join('\n'), subjects_en: (data.subjects_en ?? []).join('\n'),
+        teaching_methodology: data.teaching_methodology ?? '', teaching_methodology_en: data.teaching_methodology_en ?? '',
+        academy_features: (data.academy_features ?? []).join('\n'), academy_features_en: (data.academy_features_en ?? []).join('\n'),
+        online_class_steps: (data.online_class_steps ?? []).join('\n'), online_class_steps_en: (data.online_class_steps_en ?? []).join('\n'),
+        library_intro: data.library_intro ?? '', library_intro_en: data.library_intro_en ?? '',
+        notices_intro: data.notices_intro ?? '', notices_intro_en: data.notices_intro_en ?? '',
         contact_email: data.contact_email ?? '', contact_phone: data.contact_phone ?? '',
-        facebook: data.social_links?.facebook ?? '', youtube: data.social_links?.youtube ?? '', footer_text: data.footer_text ?? '',
+        facebook: data.social_links?.facebook ?? '', youtube: data.social_links?.youtube ?? '', footer_text: data.footer_text ?? '', footer_text_en: data.footer_text_en ?? '',
       })
       setLoading(false)
     }
@@ -146,14 +157,18 @@ function AcademySettings({ profile }: { profile: AcademyProfile }) {
     event.preventDefault(); setSaving(true); setMessage(''); setError('')
     if (!supabase) { setError('Supabase সংযোগ সেট করা নেই।'); setSaving(false); return }
     const payload = {
-      id: 1, academy_name: form.academy_name.trim(), description: form.description.trim(),
-      subjects: form.subjects.split('\n').map(item => item.trim()).filter(Boolean), teaching_methodology: form.teaching_methodology.trim(),
-      academy_features: form.academy_features.split('\n').map(item => item.trim()).filter(Boolean),
-      online_class_steps: form.online_class_steps.split('\n').map(item => item.trim()).filter(Boolean),
+      id: 1, academy_name: form.academy_name.trim(), academy_name_en: form.academy_name_en.trim() || null,
+      description: form.description.trim(), description_en: form.description_en.trim() || null,
+      about_text: form.about_text.trim(), about_text_en: form.about_text_en.trim(),
+      subjects: form.subjects.split('\n').map(item => item.trim()).filter(Boolean), subjects_en: form.subjects_en.split('\n').map(item => item.trim()).filter(Boolean),
+      teaching_methodology: form.teaching_methodology.trim(), teaching_methodology_en: form.teaching_methodology_en.trim(),
+      academy_features: form.academy_features.split('\n').map(item => item.trim()).filter(Boolean), academy_features_en: form.academy_features_en.split('\n').map(item => item.trim()).filter(Boolean),
+      online_class_steps: form.online_class_steps.split('\n').map(item => item.trim()).filter(Boolean), online_class_steps_en: form.online_class_steps_en.split('\n').map(item => item.trim()).filter(Boolean),
+      library_intro: form.library_intro.trim(), library_intro_en: form.library_intro_en.trim(), notices_intro: form.notices_intro.trim(), notices_intro_en: form.notices_intro_en.trim(),
       contact_email: form.contact_email.trim() || null,
       contact_phone: form.contact_phone.trim() || null,
       social_links: { facebook: form.facebook.trim(), youtube: form.youtube.trim() },
-      footer_text: form.footer_text.trim(), updated_at: new Date().toISOString(),
+      footer_text: form.footer_text.trim(), footer_text_en: form.footer_text_en.trim(), updated_at: new Date().toISOString(),
     }
     const { error: saveError } = await supabase.from('academy_settings').upsert(payload, { onConflict: 'id' })
     setSaving(false)
@@ -164,8 +179,9 @@ function AcademySettings({ profile }: { profile: AcademyProfile }) {
   return <section className="premium-module advanced-settings"><div className="premium-section-title"><div><div className="premium-date"><span/> একাডেমি পরিচালনা</div><h2>অ্যাডভান্সড সেটিংস</h2><p>প্রকাশ্য সাইটে দেখানো একাডেমির তথ্য ও যোগাযোগ পরিচালনা করুন।</p></div><span className="live-pill"><i/> বাস্তব সেটিংস</span></div>
     {loading ? <article className="premium-panel"><Empty label="একাডেমির সেটিংস পড়া হচ্ছে…"/></article> : <form className="premium-panel advanced-form" onSubmit={save}>
       <div className="advanced-settings-intro"><span className="panel-symbol teal"><Icon name="settings" size={18}/></span><div><b>{profile.full_name || 'অ্যাডমিন'} · একাডেমি কনফিগারেশন</b><small>পরিবর্তন Supabase-এ সংরক্ষিত হবে এবং পাবলিক সাইটে ব্যবহৃত হবে।</small></div></div>
-      <fieldset><legend>একাডেমির পরিচিতি</legend><div className="advanced-grid">{field('একাডেমির নাম', 'academy_name')}{field('একাডেমির পরিচিতি', 'description', { multiline: true })}{field('পড়ানো বিষয় · প্রতি লাইনে একটি', 'subjects', { multiline: true })}{field('পাঠদানের পদ্ধতি', 'teaching_methodology', { multiline: true })}{field('একাডেমির সুবিধা · প্রতি লাইনে একটি', 'academy_features', { multiline: true })}{field('অনলাইন ক্লাসে অংশ নেওয়ার ধাপ · প্রতি লাইনে একটি', 'online_class_steps', { multiline: true })}</div></fieldset>
-      <fieldset><legend>যোগাযোগ ও প্রকাশনা</legend><div className="advanced-grid">{field('যোগাযোগের ইমেইল', 'contact_email', { type: 'email' })}{field('যোগাযোগের ফোন', 'contact_phone', { type: 'tel' })}{field('Facebook URL', 'facebook', { type: 'url' })}{field('YouTube URL', 'youtube', { type: 'url' })}{field('ফুটারের লেখা', 'footer_text', { multiline: true })}</div></fieldset>
+      <fieldset><legend>একাডেমির পরিচিতি · বাংলা</legend><div className="advanced-grid">{field('একাডেমির নাম', 'academy_name')}{field('হোমপেজের পরিচিতি', 'description', { multiline: true })}{field('আমাদের সম্পর্কে', 'about_text', { multiline: true })}{field('পড়ানো বিষয় · প্রতি লাইনে একটি', 'subjects', { multiline: true })}{field('পাঠদানের পদ্ধতি', 'teaching_methodology', { multiline: true })}{field('একাডেমির সুবিধা · প্রতি লাইনে একটি', 'academy_features', { multiline: true })}{field('অনলাইন ক্লাসের ধাপ · প্রতি লাইনে একটি', 'online_class_steps', { multiline: true })}{field('লাইব্রেরির পরিচিতি', 'library_intro', { multiline: true })}{field('নোটিশের পরিচিতি', 'notices_intro', { multiline: true })}{field('ফুটারের লেখা', 'footer_text', { multiline: true })}</div></fieldset>
+      <fieldset><legend>Academy content · English</legend><div className="advanced-grid">{field('Academy name', 'academy_name_en')}{field('Home introduction', 'description_en', { multiline: true })}{field('About the academy', 'about_text_en', { multiline: true })}{field('Subjects · one per line', 'subjects_en', { multiline: true })}{field('Teaching approach', 'teaching_methodology_en', { multiline: true })}{field('Learning facilities · one per line', 'academy_features_en', { multiline: true })}{field('How to join · one per line', 'online_class_steps_en', { multiline: true })}{field('Library introduction', 'library_intro_en', { multiline: true })}{field('Notice introduction', 'notices_intro_en', { multiline: true })}{field('Footer text', 'footer_text_en', { multiline: true })}</div></fieldset>
+      <fieldset><legend>যোগাযোগ ও প্রকাশনা · Contact & publishing</legend><div className="advanced-grid">{field('যোগাযোগের ইমেইল / Contact email', 'contact_email', { type: 'email' })}{field('যোগাযোগের ফোন / Contact phone', 'contact_phone', { type: 'tel' })}{field('Facebook URL', 'facebook', { type: 'url' })}{field('YouTube URL', 'youtube', { type: 'url' })}</div></fieldset>
       {(error || message) && <div className={error ? 'advanced-feedback is-error' : 'advanced-feedback'} role="status">{error || message}</div>}
       <div className="advanced-actions"><span>সেটিংস পরিবর্তন করলে পাবলিক সাইটের তথ্যও বদলাবে।</span><button className="premium-add" type="submit" disabled={saving || !form.academy_name.trim()}>{saving ? 'সংরক্ষণ হচ্ছে…' : 'সেটিংস সংরক্ষণ করুন'}</button></div>
     </form>}
@@ -235,8 +251,10 @@ const moduleConfigs: Record<string, ManagerConfig> = {
     { key: 'status', label: 'ভর্তির অবস্থা', type: 'select', required: true, options: statusOptions(['pending', 'active', 'inactive']) },
   ] },
   'ক্লাস ও পাঠ': { table: 'classes', titleKeys: ['name'], detailKeys: ['subject', 'level', 'status'], fields: [
-    { key: 'name', label: 'ক্লাসের নাম', required: true }, { key: 'subject', label: 'বিষয়', required: true }, { key: 'level', label: 'শ্রেণি বা স্তর' },
-    { key: 'description', label: 'বর্ণনা', type: 'textarea' }, { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['active', 'inactive', 'archived']) },
+    { key: 'name', label: 'ক্লাসের নাম · বাংলা', required: true }, { key: 'name_en', label: 'Class name · English' },
+    { key: 'subject', label: 'বিষয় · বাংলা', required: true }, { key: 'subject_en', label: 'Subject · English' },
+    { key: 'level', label: 'শ্রেণি বা স্তর · বাংলা' }, { key: 'level_en', label: 'Level · English' },
+    { key: 'description', label: 'বর্ণনা · বাংলা', type: 'textarea' }, { key: 'description_en', label: 'Description · English', type: 'textarea' }, { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['active', 'inactive', 'archived']) },
     { key: 'public_visible', label: 'পাবলিক সাইটে দেখান', type: 'checkbox' },
   ] },
   'সময়সূচি': { table: 'class_sessions', titleKeys: ['title'], detailKeys: ['starts_at', 'status'], fields: [
@@ -270,11 +288,11 @@ const moduleConfigs: Record<string, ManagerConfig> = {
     { key: 'name', label: 'বিভাগের নাম', required: true }, { key: 'slug', label: 'লিংক নাম (ইংরেজি)', required: true }, { key: 'sort_order', label: 'ক্রম', type: 'number' },
   ] },
   'লাইব্রেরি': { table: 'library_resources', titleKeys: ['title'], detailKeys: ['resource_url', 'status'], fields: [
-    { key: 'category_id', label: 'বিভাগ (ঐচ্ছিক)', type: 'select' }, { key: 'title', label: 'উপকরণের নাম', required: true }, { key: 'resource_url', label: 'লিংক', type: 'url', required: true },
-    { key: 'description', label: 'বিবরণ', type: 'textarea' }, { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['draft', 'published', 'archived']) },
+    { key: 'category_id', label: 'বিভাগ (ঐচ্ছিক)', type: 'select' }, { key: 'title', label: 'উপকরণের নাম · বাংলা', required: true }, { key: 'title_en', label: 'Resource title · English' }, { key: 'resource_url', label: 'লিংক', type: 'url', required: true },
+    { key: 'description', label: 'বিবরণ · বাংলা', type: 'textarea' }, { key: 'description_en', label: 'Description · English', type: 'textarea' }, { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['draft', 'published', 'archived']) },
   ] },
   'নোটিশ': { table: 'notices', titleKeys: ['title'], detailKeys: ['visibility', 'priority', 'status'], fields: [
-    { key: 'title', label: 'নোটিশের শিরোনাম', required: true }, { key: 'description', label: 'নোটিশের লেখা', type: 'textarea', required: true },
+    { key: 'title', label: 'নোটিশের শিরোনাম · বাংলা', required: true }, { key: 'title_en', label: 'Notice title · English' }, { key: 'description', label: 'নোটিশের লেখা · বাংলা', type: 'textarea', required: true }, { key: 'description_en', label: 'Notice text · English', type: 'textarea' },
     { key: 'visibility', label: 'কারা দেখবে', type: 'select', required: true, options: [{ value: 'public', label: 'সবার জন্য' }, { value: 'students', label: 'শুধু শিক্ষার্থী' }, { value: 'all_users', label: 'লগইন করা সবাই' }] },
     { key: 'priority', label: 'গুরুত্ব', type: 'select', required: true, options: [{ value: 'normal', label: 'সাধারণ' }, { value: 'important', label: 'জরুরি' }] },
     { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['draft', 'published', 'archived']) },
