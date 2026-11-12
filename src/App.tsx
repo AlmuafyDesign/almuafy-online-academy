@@ -20,6 +20,44 @@ function App() {
   const [installEvent, setInstallEvent] = useState<any>(null)
 
   useEffect(() => {
+    const key = `almuafy-scroll:${window.location.pathname}`
+    let timer = 0
+    const savePosition = () => {
+      window.clearTimeout(timer)
+      try { sessionStorage.setItem(key, String(window.scrollY)) } catch { /* Optional per-tab restore. */ }
+    }
+    const onScroll = () => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => {
+        try { sessionStorage.setItem(key, String(window.scrollY)) } catch { /* Optional per-tab restore. */ }
+      }, 140)
+    }
+    const onVisibility = () => { if (document.visibilityState === 'hidden') savePosition() }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('pagehide', savePosition)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      savePosition()
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('pagehide', savePosition)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (loading || window.location.hash) return
+    const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
+    const discarded = Boolean((document as Document & { wasDiscarded?: boolean }).wasDiscarded)
+    if (!discarded && navigation?.type !== 'reload') return
+    let saved = ''
+    try { saved = sessionStorage.getItem(`almuafy-scroll:${window.location.pathname}`) ?? '' } catch { return }
+    const position = Number(saved)
+    if (!Number.isFinite(position) || position <= 0) return
+    const timer = window.setTimeout(() => window.scrollTo(0, position), 160)
+    return () => window.clearTimeout(timer)
+  }, [loading])
+
+  useEffect(() => {
     const handler = (event: Event) => { event.preventDefault(); setInstallEvent(event) }
     window.addEventListener('beforeinstallprompt', handler)
     return () => window.removeEventListener('beforeinstallprompt', handler)

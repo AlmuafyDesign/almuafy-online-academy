@@ -3,6 +3,7 @@ import type { AcademyProfile } from './services/supabase'
 import { supabase } from './services/supabase'
 import { bi } from './bilingual'
 import { LanguageToggle, useLanguage, type Language } from './language'
+import { readTabMemory, writeTabMemory } from './tab-memory'
 
 type PortalData = {
   enrollments: any[]; sessions: any[]; lessons: any[]; lessonLinks: any[]; homework: any[]; submissions: any[]; attendance: any[]; notices: any[]; notifications: any[]; library: any[]
@@ -30,10 +31,12 @@ const studentText = (bangla: string, language: Language) => bi(bangla, studentEn
 
 export default function StudentPortal({ profile, onSignOut, onProfileUpdated }: { profile: AcademyProfile; onSignOut: () => void; onProfileUpdated: (profile: AcademyProfile) => void }) {
   const { language } = useLanguage()
+  const activeMemoryKey = `almuafy-student-section:${profile.id}`
+  const [active, setActive] = useState(() => readTabMemory(activeMemoryKey, 'আমার পড়াশোনা'))
+  const selectSection = (section: string) => { setActive(section); writeTabMemory(activeMemoryKey, section) }
   const [data, setData] = useState(EMPTY)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [active, setActive] = useState('আমার পড়াশোনা')
   const [profileOpen, setProfileOpen] = useState(false)
   const [fullName, setFullName] = useState(profile.full_name)
   const [phone, setPhone] = useState(profile.phone ?? '')
@@ -112,7 +115,7 @@ export default function StudentPortal({ profile, onSignOut, onProfileUpdated }: 
   const navEnglish: Record<string, string> = { 'আমার পড়াশোনা': 'My Learning', 'ক্লাসের সময়সূচি': 'Class Schedule', 'দৈনিক পাঠ': 'Daily Lessons', 'হোমওয়ার্ক': 'Homework', 'লাইব্রেরি': 'Library', 'উপস্থিতি': 'Attendance', 'নোটিশ': 'Notices', 'বিজ্ঞপ্তি': 'Notifications' }
   const navIcons: Record<string, string> = { 'আমার পড়াশোনা': '⌂', 'ক্লাসের সময়সূচি': '◷', 'দৈনিক পাঠ': '▤', 'হোমওয়ার্ক': '✓', 'লাইব্রেরি': '▧', 'উপস্থিতি': '◉', 'নোটিশ': '◈', 'বিজ্ঞপ্তি': '♧' }
   return <main className="student-portal"><header className="student-topbar"><a className="student-brand" href="#student-home" aria-label="Almuafy Student Portal"><img src={`${import.meta.env.BASE_URL}images/my-own-logo.png`} alt=""/><span><b>{bi('আলমুয়াফী', 'Almuafy', language)}</b><small>{bi('শিক্ষার্থী পোর্টাল', 'Student Portal', language)}</small></span></a><div className="student-top-actions"><LanguageToggle/><button className="student-profile-action" onClick={() => { setProfileOpen(!profileOpen); setSaveMessage('') }}><span className="student-user-mark">{Array.from(profile.full_name || 'আ')[0]}</span><span>{bi('আমার প্রোফাইল', 'My Profile', language)}</span></button><button className="student-logout" onClick={onSignOut}>{bi('লগআউট', 'Sign out', language)}</button></div></header>
-    <div className="student-layout"><aside className="student-nav" aria-label={bi('শিক্ষার্থীর মেনু', 'Student navigation', language)}><div className="student-nav-heading"><span>{bi('শেখার মেনু', 'Learning menu', language)}</span><small>{bi('আপনার পড়াশোনা', 'Your studies', language)}</small></div>{nav.map(item => <button key={item} className={active === item ? 'active' : ''} aria-current={active === item ? 'page' : undefined} onClick={() => setActive(item)}><i aria-hidden="true">{navIcons[item]}</i><span>{bi(item, navEnglish[item], language)}</span>{active === item && <b aria-hidden="true">›</b>}</button>)}</aside>
+    <div className="student-layout"><aside className="student-nav" aria-label={bi('শিক্ষার্থীর মেনু', 'Student navigation', language)}><div className="student-nav-heading"><span>{bi('শেখার মেনু', 'Learning menu', language)}</span><small>{bi('আপনার পড়াশোনা', 'Your studies', language)}</small></div>{nav.map(item => <button key={item} className={active === item ? 'active' : ''} aria-current={active === item ? 'page' : undefined} onClick={() => selectSection(item)}><i aria-hidden="true">{navIcons[item]}</i><span>{bi(item, navEnglish[item], language)}</span>{active === item && <b aria-hidden="true">›</b>}</button>)}</aside>
       <section className="student-main" id="student-home"><div className="student-welcome"><div><span className="student-greeting">{bi('আসসালামু আলাইকুম', 'Assalamu Alaikum', language)}</span><h1>{profile.full_name || bi('প্রিয় শিক্ষার্থী', 'Dear student', language)}</h1><p>{bi('আপনার ক্লাস, পাঠ, উপস্থিতি ও হোমওয়ার্ক এক জায়গায়।', 'Your classes, lessons, attendance and homework in one place.', language)}</p></div><div className="student-welcome-mark" aria-hidden="true"><span>اقرأ</span><img src={`${import.meta.env.BASE_URL}images/my-own-logo.png`} alt=""/></div></div>
         {profileOpen && <form className="student-card student-profile-form" onSubmit={saveProfile}><h2>{bi('প্রোফাইলের তথ্য', 'Profile details', language)}</h2><div className="student-form-grid"><label>{bi('পূর্ণ নাম', 'Full name', language)}<input required value={fullName} onChange={event => setFullName(event.target.value)}/></label><label>{bi('ফোন', 'Phone', language)}<input type="tel" value={phone} onChange={event => setPhone(event.target.value)}/></label><label className="student-wide">{bi('ঠিকানা', 'Address', language)}<input value={address} onChange={event => setAddress(event.target.value)} placeholder={bi('ঠিকানা (ঐচ্ছিক)', 'Address (optional)', language)}/></label></div>{saveMessage && <p role="status">{saveMessage}</p>}<button className="primary-button" disabled={saving}>{saving ? bi('সংরক্ষণ হচ্ছে…', 'Saving…', language) : bi('প্রোফাইল সংরক্ষণ', 'Save profile', language)}</button></form>}
         {error && <div className="student-error" role="status">{error}</div>}
