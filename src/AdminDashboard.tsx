@@ -418,7 +418,7 @@ function ModuleManager({ active, profile, query }: { active: string; profile: Ac
       else if (field.type === 'number') payload[field.key] = value ? Number(value) : field.key === 'duration_minutes' ? 45 : field.key === 'sort_order' ? 0 : null
       else payload[field.key] = String(value ?? '').trim() || null
     }
-    if (!editing && ['class_sessions', 'daily_lessons', 'homework', 'library_resources', 'notices'].includes(config.table)) payload.created_by = profile.id
+    if (!editing && ['daily_lessons', 'homework', 'library_resources', 'notices'].includes(config.table)) payload.created_by = profile.id
     if (!editing && config.table === 'attendance') payload.recorded_by = profile.id
     if (config.table === 'notices' && payload.status === 'published') payload.published_at = editing?.published_at || new Date().toISOString()
     if (config.table === 'library_resources') payload.status = editing ? editing.status : 'published'
