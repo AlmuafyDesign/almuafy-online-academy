@@ -1,0 +1,34 @@
+/* Inter covers Latin text; Bornomala supplies readable Bangla glyphs. */
+.real-public,
+.auth-page,
+.student-portal { font-family: Inter, 'Bornomala', 'Noto Sans Bengali', sans-serif; }
+
+.real-public-nav button,
+.real-public-section,
+.real-hero,
+.real-footer,
+.auth-card,
+.auth-page,
+.student-portal { font-family: Inter, 'Bornomala', 'Noto Sans Bengali', sans-serif; }
+
+.real-public small,
+.real-public p,
+.real-public a,
+.real-public button,
+.real-public span,
+.auth-page label,
+.auth-page button,
+.auth-page p,
+.student-portal small,
+.student-portal label,
+.student-portal button,
+.student-portal p { font-family: Inter, 'Bornomala', 'Noto Sans Bengali', sans-serif; }
+
+.real-public-nav button { white-space: normal; line-height: 1.35; }
+
+@media (max-width: 760px) {
+  .real-public-nav { height: auto; min-height: 64px; flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
+  .real-public-nav>a { flex: 1 1 100%; }
+  .real-public-nav>div { width: 100%; display: flex; gap: 6px; }
+  .real-public-nav button { flex: 1 1 0; min-width: 0; padding: 8px 5px; font-size: 11px; }
+}

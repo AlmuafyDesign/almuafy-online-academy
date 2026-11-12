@@ -8,6 +8,7 @@ const APP_SHELL = [
   `${APP_BASE}images/my-own-logo.png`,
   `${APP_BASE}fonts/bornomala-regular.woff2`,
   `${APP_BASE}fonts/bornomala-bold.woff2`,
+  `${APP_BASE}fonts/inter-latin-variable.woff2`,
 ]
 
 self.addEventListener('install', event => {

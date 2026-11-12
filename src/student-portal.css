@@ -7,7 +7,7 @@
   background:
     radial-gradient(ellipse at 92% 4%, #e5e6f6 0, transparent 33%),
     linear-gradient(140deg, #eef7f5 0%, #edf3f7 55%, #f4f5fb 100%);
-  font-family: 'Bornomala', 'Noto Sans Bengali', sans-serif;
+  font-family: Inter, 'Bornomala', 'Noto Sans Bengali', sans-serif;
 }
 
 .student-portal * { box-sizing: border-box; }
