@@ -176,9 +176,25 @@ function AcademySettings({ profile }: { profile: AcademyProfile }) {
       social_links: { facebook: form.facebook.trim(), youtube: form.youtube.trim() },
       footer_text: form.footer_text.trim(), footer_text_en: form.footer_text_en.trim(), updated_at: new Date().toISOString(),
     }
-    const { error: saveError } = await supabase.from('academy_settings').upsert(payload, { onConflict: 'id' })
+    let result = await supabase.from('academy_settings').upsert(payload, { onConflict: 'id' })
+    let savedLegacyOnly = false
+    const publicContentFields = ['academy_name_en', 'description_en', 'about_text', 'about_text_en', 'teaching_methodology_en', 'subjects_en', 'academy_features_en', 'online_class_steps_en', 'library_intro', 'library_intro_en', 'notices_intro', 'notices_intro_en', 'footer_text_en']
+    const corePublicFields = ['subjects', 'teaching_methodology', 'academy_features', 'online_class_steps']
+    const isMissingField = (error: { code?: string; message: string } | null, fields: string[]) => Boolean(error && (error.code === 'PGRST204' || fields.some(name => error.message.includes(name)) || /schema cache/i.test(error.message)))
+    if (isMissingField(result.error, publicContentFields)) {
+      const compatiblePayload = { ...payload }
+      publicContentFields.forEach(field => { delete compatiblePayload[field as keyof typeof compatiblePayload] })
+      result = await supabase.from('academy_settings').upsert(compatiblePayload, { onConflict: 'id' })
+      savedLegacyOnly = !result.error
+      if (result.error && isMissingField(result.error, corePublicFields)) {
+        corePublicFields.forEach(field => { delete compatiblePayload[field as keyof typeof compatiblePayload] })
+        result = await supabase.from('academy_settings').upsert(compatiblePayload, { onConflict: 'id' })
+        savedLegacyOnly = !result.error
+      }
+    }
     setSaving(false)
-    if (saveError) setError('সেটিংস সংরক্ষণ হয়নি। সংযোগ ও অ্যাডমিন অনুমতি যাচাই করুন।')
+    if (result.error) setError(`সেটিংস সংরক্ষণ হয়নি: ${result.error.message}`)
+    else if (savedLegacyOnly) setMessage('সেটিংস সংরক্ষিত হয়েছে। বিষয়/বাংলা-ইংরেজি অতিরিক্ত তথ্য চালু করতে Supabase migration 20261112020000 এবং 20261112050000 চালান।')
     else setMessage('একাডেমির সেটিংস সফলভাবে সংরক্ষিত হয়েছে।')
   }
   const field = (label: string, key: keyof AcademySettingsRecord, options: { type?: string; multiline?: boolean; hint?: string } = {}) => <label className="advanced-field" key={key}><span>{label}</span>{options.multiline ? <textarea value={form[key]} onChange={event => change(key, event.target.value)} rows={3}/> : <input type={options.type ?? 'text'} value={form[key]} onChange={event => change(key, event.target.value)} />}{options.hint && <small>{options.hint}</small>}</label>
@@ -421,6 +437,7 @@ function ModuleManager({ active, profile, query }: { active: string; profile: Ac
     if (!editing && ['daily_lessons', 'homework', 'library_resources', 'notices'].includes(config.table)) payload.created_by = profile.id
     if (!editing && config.table === 'attendance') payload.recorded_by = profile.id
     if (config.table === 'notices' && payload.status === 'published') payload.published_at = editing?.published_at || new Date().toISOString()
+    if (config.table === 'homework_submissions') payload.reviewed_at = ['reviewed', 'completed', 'needs_revision'].includes(String(payload.status)) ? new Date().toISOString() : null
     if (config.table === 'library_resources') payload.status = editing ? editing.status : 'published'
     if (['classes', 'class_sessions', 'daily_lessons', 'homework', 'library_resources', 'notices'].includes(config.table)) payload.updated_at = new Date().toISOString()
     let result = editing ? await supabase.from(config.table).update(payload).eq('id', editing.id) : await supabase.from(config.table).insert(payload)
