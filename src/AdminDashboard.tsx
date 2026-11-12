@@ -29,7 +29,6 @@ const navGroups: { title: string; items: { label: string; icon: IconName }[] }[]
   { title: 'শেখার উপকরণ', items: [{ label: 'দৈনিক পাঠ', icon: 'book' }, { label: 'হোমওয়ার্ক', icon: 'check' }, { label: 'লাইব্রেরি', icon: 'layers' }] },
   { title: 'পরিচালনা', items: [{ label: 'নোটিশ', icon: 'bell' }, { label: 'সেটিংস', icon: 'settings' }] },
 ]
-const tableFor: Record<string, string> = { 'শিক্ষার্থী': 'profiles', 'ক্লাস ও পাঠ': 'classes', 'সময়সূচি': 'class_sessions', 'উপস্থিতি': 'attendance', 'দৈনিক পাঠ': 'daily_lessons', 'হোমওয়ার্ক': 'homework', 'লাইব্রেরি': 'library_resources', 'নোটিশ': 'notices', 'সেটিংস': 'academy_settings' }
 function dhakaDayBounds() { const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()); const part = (type: string) => parts.find(item => item.type === type)?.value ?? ''; const day = `${part('year')}-${part('month')}-${part('day')}`; return { start: new Date(`${day}T00:00:00+06:00`).toISOString(), end: new Date(`${day}T00:00:00+06:00`).getTime() + 86_400_000 } }
 function bnDate(value: string, options?: Intl.DateTimeFormatOptions) { return new Intl.DateTimeFormat('bn-BD', { timeZone: 'Asia/Dhaka', ...options }).format(new Date(value)) }
 function bnNumber(value: number) { return new Intl.NumberFormat('bn-BD').format(value) }
@@ -41,7 +40,6 @@ export default function AdminDashboard({ profile, onSignOut }: { profile: Academ
   const [active, setActive] = useState('ড্যাশবোর্ড')
   const [menuOpen, setMenuOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [moduleRows, setModuleRows] = useState<any[]>([])
   const name = profile.full_name.trim() || 'প্রশাসক'
   const greetingDate = useMemo(() => new Intl.DateTimeFormat('bn-BD', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Dhaka' }).format(new Date()), [])
   const { start: todayStart, end: todayEnd } = dhakaDayBounds()
@@ -72,16 +70,6 @@ export default function AdminDashboard({ profile, onSignOut }: { profile: Academ
     return () => { live = false }
   }, [todayStart, todayEnd])
 
-  useEffect(() => {
-    if (active === 'ড্যাশবোর্ড' || !supabase) { setModuleRows([]); return }
-    let live = true
-    const table = tableFor[active]
-    if (!table) return
-    supabase.from(table).select('*').limit(50).then(({ data: rows, error }) => { if (!live) return; if (error) setProblem('এই অংশের তথ্য লোড করা যায়নি।'); setModuleRows(rows ?? []) })
-    return () => { live = false }
-  }, [active])
-
-  const visibleRows = moduleRows.filter(row => JSON.stringify(row).toLowerCase().includes(query.toLowerCase()))
   const attendancePercent = data.attendance ? Math.round((data.attendance.present / data.attendance.total) * 100) : null
   const stats = [
     { label: 'মোট শিক্ষার্থী', value: data.students, note: 'নিবন্ধিত শিক্ষার্থী', icon: 'users' as const, color: 'mint' },
@@ -109,7 +97,7 @@ export default function AdminDashboard({ profile, onSignOut }: { profile: Academ
           <section className="premium-columns"><article className="premium-panel schedule-panel"><div className="premium-panel-head"><div><span className="panel-symbol teal"><Icon name="calendar" size={17}/></span><div><h3>আজকের সময়সূচি</h3><p>{bnDate(new Date().toISOString(), { day: 'numeric', month: 'long', timeZone: 'Asia/Dhaka' })} · নির্ধারিত ক্লাস</p></div></div><button onClick={() => setActive('সময়সূচি')}>সব দেখুন <Icon name="arrow" size={14}/></button></div><div className="premium-records">{loading ? <Empty label="সময়সূচি লোড হচ্ছে…"/> : data.sessions.length ? data.sessions.map(item => { const classInfo = Array.isArray(item.classes) ? item.classes[0] : item.classes; return <div className="premium-session" key={item.id}><span className="session-time"><b>{bnDate(item.starts_at, { hour: '2-digit', minute: '2-digit' })}</b><small>{item.duration_minutes} মিনিট</small></span><span className="session-mark"><Icon name="book" size={16}/></span><div className="session-info"><b>{item.title || classInfo?.name || 'ক্লাস সেশন'}</b><small>{classInfo?.subject || classInfo?.name || 'একাডেমি ক্লাস'} · {item.status === 'live' ? 'লাইভ' : item.status === 'completed' ? 'সম্পন্ন' : 'নির্ধারিত'}</small></div>{item.meeting_url && <a className="join-link" href={item.meeting_url} target="_blank" rel="noreferrer">ক্লাসে যান →</a>}</div> }) : <Empty label="আজকের জন্য কোনো ক্লাস নির্ধারিত নেই।"/>}</div><button className="panel-foot-link" onClick={() => setActive('সময়সূচি')}>সম্পূর্ণ সময়সূচি <Icon name="arrow" size={14}/></button></article>
             <article className="premium-panel attendance-panel"><div className="premium-panel-head"><div><span className="panel-symbol gold"><Icon name="check" size={17}/></span><div><h3>উপস্থিতির সারাংশ</h3><p>গত ৭ দিনের নথিভুক্ত তথ্য</p></div></div><button onClick={() => setActive('উপস্থিতি')}>বিস্তারিত <Icon name="arrow" size={14}/></button></div>{data.attendance ? <div className="attendance-live"><div className="attendance-ring" style={{ '--attendance': `${attendancePercent ?? 0}%` } as React.CSSProperties}><div><b>{bnNumber(attendancePercent ?? 0)}<small>%</small></b><span>উপস্থিত</span></div></div><div className="attendance-legend"><div><i className="present-dot"/><span>উপস্থিত</span><b>{bnNumber(data.attendance.present)}</b></div><div><i className="absent-dot"/><span>অন্যান্য</span><b>{bnNumber(data.attendance.total - data.attendance.present)}</b></div><small>মোট {bnNumber(data.attendance.total)}টি attendance record</small></div></div> : <Empty label="উপস্থিতির রেকর্ড যোগ হলে সারাংশ এখানে দেখা যাবে।"/>}<button className="panel-foot-link" onClick={() => setActive('উপস্থিতি')}>উপস্থিতির তথ্য <Icon name="arrow" size={14}/></button></article></section>
           <section className="premium-columns lower"><article className="premium-panel"><div className="premium-panel-head"><div><span className="panel-symbol violet"><Icon name="layers" size={17}/></span><div><h3>সাম্প্রতিক কার্যক্রম</h3><p>অ্যাডমিন activity log থেকে</p></div></div><button onClick={() => setActive('সেটিংস')}>সব দেখুন <Icon name="arrow" size={14}/></button></div><div className="activity-records">{loading ? <Empty label="কার্যক্রম লোড হচ্ছে…"/> : data.activities.length ? data.activities.map(item => <div className="activity-line" key={item.id}><span><Icon name="clock" size={15}/></span><div><b>{item.action} · {item.entity_type}</b><small>{bnDate(item.created_at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div></div>) : <Empty label="নতুন কার্যক্রম হলে এখানে দেখা যাবে।"/>}</div></article><article className="premium-notice"><div className="notice-label"><span><Icon name="bell" size={16}/></span> সর্বশেষ প্রকাশিত নোটিশ</div>{loading ? <Empty label="নোটিশ লোড হচ্ছে…"/> : data.notice ? <><h3>{data.notice.title}</h3><p>{data.notice.description}</p><small>{data.notice.published_at ? bnDate(data.notice.published_at, { day: 'numeric', month: 'long', year: 'numeric' }) : ''}</small></> : <Empty label="এখনো কোনো প্রকাশিত নোটিশ নেই।"/>}<button onClick={() => setActive('নোটিশ')}>নোটিশ দেখুন <Icon name="arrow" size={14}/></button></article></section>
-        </> : <section className="premium-module"><div className="premium-section-title"><div><div className="premium-date"><span/> একাডেমি পরিচালনা</div><h2>{active}</h2><p>Supabase-এ সংরক্ষিত বাস্তব রেকর্ড</p></div><span className="live-pill"><i/> লাইভ ডেটা</span></div><article className="premium-panel"><div className="module-summary"><span className="panel-symbol teal"><Icon name={navGroups.flatMap(group => group.items).find(item => item.label === active)?.icon ?? 'grid'} size={18}/></span><div><b>{active} তালিকা</b><small>{loading ? 'তথ্য পড়া হচ্ছে…' : `${bnNumber(visibleRows.length)}টি রেকর্ড দেখানো হচ্ছে`}</small></div></div>{loading ? <Empty label="তথ্য লোড হচ্ছে…"/> : problem ? <Empty label={problem}/> : visibleRows.length ? <div className="module-records">{visibleRows.map((row, index) => { const title = row.full_name || row.name || row.title || row.subject || row.action || row.id || `রেকর্ড ${index + 1}`; const detail = row.email || row.description || row.phone || row.status || row.subject || ''; return <div className="module-row" key={row.id ?? index}><b>{title}</b><span>{String(detail)}</span></div> })}</div> : <Empty label={`এখনো ${active} যোগ করা হয়নি।`} />}</article></section>}
+        </> : active === 'সেটিংস' ? <AcademySettings profile={profile} /> : <ModuleManager key={active} active={active} profile={profile} query={query} />}
         <footer className="premium-footer"><span>© {new Date().getFullYear()} আলমুয়াফী অনলাইন একাডেমি</span><span>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</span></footer>
       </div>
     </main>
@@ -117,3 +105,203 @@ export default function AdminDashboard({ profile, onSignOut }: { profile: Academ
 }
 
 function Empty({ label }: { label: string }) { return <div className="premium-empty"><span>✦</span><p>{label}</p></div> }
+
+type AcademySettingsRecord = {
+  academy_name: string; description: string; teacher_name: string; teacher_bio: string;
+  teacher_photo_url: string; qualifications: string; teaching_experience: string;
+  contact_email: string; contact_phone: string; facebook: string; youtube: string;
+  footer_text: string;
+}
+const EMPTY_SETTINGS: AcademySettingsRecord = {
+  academy_name: '', description: '', teacher_name: '', teacher_bio: '', teacher_photo_url: '',
+  qualifications: '', teaching_experience: '', contact_email: '', contact_phone: '',
+  facebook: '', youtube: '', footer_text: '',
+}
+function AcademySettings({ profile }: { profile: AcademyProfile }) {
+  const [form, setForm] = useState(EMPTY_SETTINGS)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let live = true
+    async function load() {
+      if (!supabase) { setError('Supabase সংযোগ সেট করা নেই।'); setLoading(false); return }
+      const { data, error: loadError } = await supabase.from('academy_settings').select('*').eq('id', 1).maybeSingle()
+      if (!live) return
+      if (loadError) setError('একাডেমির সেটিংস পড়া যায়নি। ডেটাবেজ সংযোগ ও অনুমতি যাচাই করুন।')
+      if (data) setForm({
+        academy_name: data.academy_name ?? '', description: data.description ?? '', teacher_name: data.teacher_name ?? '',
+        teacher_bio: data.teacher_bio ?? '', teacher_photo_url: data.teacher_photo_url ?? '',
+        qualifications: (data.qualifications ?? []).join('\n'), teaching_experience: data.teaching_experience ?? '',
+        contact_email: data.contact_email ?? '', contact_phone: data.contact_phone ?? '',
+        facebook: data.social_links?.facebook ?? '', youtube: data.social_links?.youtube ?? '', footer_text: data.footer_text ?? '',
+      })
+      setLoading(false)
+    }
+    void load()
+    return () => { live = false }
+  }, [])
+  function change(field: keyof AcademySettingsRecord, value: string) { setForm(current => ({ ...current, [field]: value })); setMessage(''); setError('') }
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setSaving(true); setMessage(''); setError('')
+    if (!supabase) { setError('Supabase সংযোগ সেট করা নেই।'); setSaving(false); return }
+    const payload = {
+      id: 1, academy_name: form.academy_name.trim(), description: form.description.trim(),
+      teacher_name: form.teacher_name.trim(), teacher_bio: form.teacher_bio.trim(),
+      teacher_photo_url: form.teacher_photo_url.trim() || null,
+      qualifications: form.qualifications.split('\n').map(item => item.trim()).filter(Boolean),
+      teaching_experience: form.teaching_experience.trim(), contact_email: form.contact_email.trim() || null,
+      contact_phone: form.contact_phone.trim() || null,
+      social_links: { facebook: form.facebook.trim(), youtube: form.youtube.trim() },
+      footer_text: form.footer_text.trim(), updated_at: new Date().toISOString(),
+    }
+    const { error: saveError } = await supabase.from('academy_settings').upsert(payload, { onConflict: 'id' })
+    setSaving(false)
+    if (saveError) setError('সেটিংস সংরক্ষণ হয়নি। সংযোগ ও অ্যাডমিন অনুমতি যাচাই করুন।')
+    else setMessage('একাডেমির সেটিংস সফলভাবে সংরক্ষিত হয়েছে।')
+  }
+  const field = (label: string, key: keyof AcademySettingsRecord, options: { type?: string; multiline?: boolean; hint?: string } = {}) => <label className="advanced-field" key={key}><span>{label}</span>{options.multiline ? <textarea value={form[key]} onChange={event => change(key, event.target.value)} rows={3}/> : <input type={options.type ?? 'text'} value={form[key]} onChange={event => change(key, event.target.value)} />}{options.hint && <small>{options.hint}</small>}</label>
+  return <section className="premium-module advanced-settings"><div className="premium-section-title"><div><div className="premium-date"><span/> একাডেমি পরিচালনা</div><h2>অ্যাডভান্সড সেটিংস</h2><p>প্রকাশ্য সাইটে দেখানো একাডেমির তথ্য ও যোগাযোগ পরিচালনা করুন।</p></div><span className="live-pill"><i/> বাস্তব সেটিংস</span></div>
+    {loading ? <article className="premium-panel"><Empty label="একাডেমির সেটিংস পড়া হচ্ছে…"/></article> : <form className="premium-panel advanced-form" onSubmit={save}>
+      <div className="advanced-settings-intro"><span className="panel-symbol teal"><Icon name="settings" size={18}/></span><div><b>{profile.full_name || 'অ্যাডমিন'} · একাডেমি কনফিগারেশন</b><small>পরিবর্তন Supabase-এ সংরক্ষিত হবে এবং পাবলিক সাইটে ব্যবহৃত হবে।</small></div></div>
+      <fieldset><legend>একাডেমির পরিচিতি</legend><div className="advanced-grid">{field('একাডেমির নাম', 'academy_name')}{field('শিক্ষকের নাম', 'teacher_name')}{field('একাডেমির পরিচিতি', 'description', { multiline: true })}{field('শিক্ষকের পরিচিতি', 'teacher_bio', { multiline: true })}{field('শিক্ষকের ছবি URL', 'teacher_photo_url', { type: 'url', hint: 'HTTPS ছবির ঠিকানা দিন।' })}{field('যোগ্যতা · প্রতি লাইনে একটি', 'qualifications', { multiline: true })}{field('শিক্ষাদানের অভিজ্ঞতা', 'teaching_experience')}</div></fieldset>
+      <fieldset><legend>যোগাযোগ ও প্রকাশনা</legend><div className="advanced-grid">{field('যোগাযোগের ইমেইল', 'contact_email', { type: 'email' })}{field('যোগাযোগের ফোন', 'contact_phone', { type: 'tel' })}{field('Facebook URL', 'facebook', { type: 'url' })}{field('YouTube URL', 'youtube', { type: 'url' })}{field('ফুটারের লেখা', 'footer_text', { multiline: true })}</div></fieldset>
+      {(error || message) && <div className={error ? 'advanced-feedback is-error' : 'advanced-feedback'} role="status">{error || message}</div>}
+      <div className="advanced-actions"><span>সেটিংস পরিবর্তন করলে পাবলিক সাইটের তথ্যও বদলাবে।</span><button className="premium-add" type="submit" disabled={saving || !form.academy_name.trim()}>{saving ? 'সংরক্ষণ হচ্ছে…' : 'সেটিংস সংরক্ষণ করুন'}</button></div>
+    </form>}
+  </section>
+}
+
+type ManagerField = { key: string; label: string; type?: 'text' | 'email' | 'tel' | 'url' | 'textarea' | 'date' | 'datetime-local' | 'number' | 'select' | 'checkbox'; required?: boolean; options?: { value: string; label: string }[]; hint?: string }
+type ManagerConfig = { table: string; titleKeys: string[]; detailKeys: string[]; fields: ManagerField[]; create?: boolean }
+const statusOptions = (values: string[]) => values.map(value => ({ value, label: ({ active: 'সক্রিয়', inactive: 'নিষ্ক্রিয়', archived: 'আর্কাইভ', draft: 'খসড়া', published: 'প্রকাশিত', scheduled: 'নির্ধারিত', live: 'চলমান', completed: 'সম্পন্ন', cancelled: 'বাতিল', present: 'উপস্থিত', absent: 'অনুপস্থিত', late: 'দেরি', pending: 'অপেক্ষমাণ' } as Record<string, string>)[value] ?? value }))
+const moduleConfigs: Record<string, ManagerConfig> = {
+  'শিক্ষার্থী': { table: 'profiles', create: false, titleKeys: ['full_name', 'email'], detailKeys: ['phone', 'status'], fields: [
+    { key: 'full_name', label: 'পূর্ণ নাম', required: true }, { key: 'phone', label: 'ফোন', type: 'tel' },
+    { key: 'status', label: 'অ্যাকাউন্ট অবস্থা', type: 'select', options: statusOptions(['active', 'pending', 'inactive', 'blocked']), required: true },
+  ] },
+  'ক্লাস ও পাঠ': { table: 'classes', titleKeys: ['name'], detailKeys: ['subject', 'level', 'status'], fields: [
+    { key: 'name', label: 'ক্লাসের নাম', required: true }, { key: 'subject', label: 'বিষয়', required: true }, { key: 'level', label: 'শ্রেণি বা স্তর' },
+    { key: 'description', label: 'বর্ণনা', type: 'textarea' }, { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['active', 'inactive', 'archived']) },
+    { key: 'public_visible', label: 'পাবলিক সাইটে দেখান', type: 'checkbox' },
+  ] },
+  'সময়সূচি': { table: 'class_sessions', titleKeys: ['title'], detailKeys: ['starts_at', 'status'], fields: [
+    { key: 'class_id', label: 'ক্লাস নির্বাচন', type: 'select', required: true }, { key: 'title', label: 'সেশনের শিরোনাম', required: true },
+    { key: 'starts_at', label: 'শুরুর সময়', type: 'datetime-local', required: true }, { key: 'duration_minutes', label: 'সময় (মিনিট)', type: 'number', required: true },
+    { key: 'meeting_url', label: 'ক্লাস লিংক', type: 'url', hint: 'এখনকার বাহ্যিক মিটিং লিংক; ইন-অ্যাপ ভিডিও কল পরে যুক্ত হবে।' },
+    { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['scheduled', 'live', 'completed', 'cancelled']) },
+  ] },
+  'উপস্থিতি': { table: 'attendance', titleKeys: ['status'], detailKeys: ['note', 'recorded_at'], fields: [
+    { key: 'session_id', label: 'ক্লাস সেশন', type: 'select', required: true }, { key: 'student_id', label: 'শিক্ষার্থী', type: 'select', required: true },
+    { key: 'status', label: 'উপস্থিতির অবস্থা', type: 'select', required: true, options: statusOptions(['present', 'absent', 'late']) }, { key: 'note', label: 'মন্তব্য', type: 'textarea' },
+  ] },
+  'দৈনিক পাঠ': { table: 'daily_lessons', titleKeys: ['title'], detailKeys: ['subject', 'lesson_date', 'status'], fields: [
+    { key: 'class_id', label: 'ক্লাস নির্বাচন', type: 'select', required: true }, { key: 'title', label: 'পাঠের শিরোনাম', required: true }, { key: 'subject', label: 'বিষয়', required: true },
+    { key: 'description', label: 'পাঠের বিবরণ', type: 'textarea' }, { key: 'lesson_date', label: 'পাঠের তারিখ', type: 'date', required: true },
+    { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['draft', 'published', 'archived']) },
+  ] },
+  'হোমওয়ার্ক': { table: 'homework', titleKeys: ['title'], detailKeys: ['due_at', 'status'], fields: [
+    { key: 'class_id', label: 'ক্লাস নির্বাচন', type: 'select', required: true }, { key: 'title', label: 'হোমওয়ার্কের শিরোনাম', required: true },
+    { key: 'instructions', label: 'নির্দেশনা', type: 'textarea' }, { key: 'due_at', label: 'জমা দেওয়ার শেষ সময়', type: 'datetime-local' },
+    { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['draft', 'published', 'closed', 'archived']) },
+  ] },
+  'লাইব্রেরি': { table: 'library_resources', titleKeys: ['title'], detailKeys: ['resource_url', 'status'], fields: [
+    { key: 'title', label: 'উপকরণের নাম', required: true }, { key: 'resource_url', label: 'লিংক', type: 'url', required: true },
+    { key: 'description', label: 'বিবরণ', type: 'textarea' }, { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['draft', 'published', 'archived']) },
+  ] },
+  'নোটিশ': { table: 'notices', titleKeys: ['title'], detailKeys: ['visibility', 'priority', 'status'], fields: [
+    { key: 'title', label: 'নোটিশের শিরোনাম', required: true }, { key: 'description', label: 'নোটিশের লেখা', type: 'textarea', required: true },
+    { key: 'visibility', label: 'কারা দেখবে', type: 'select', required: true, options: [{ value: 'public', label: 'সবার জন্য' }, { value: 'students', label: 'শুধু শিক্ষার্থী' }, { value: 'all_users', label: 'লগইন করা সবাই' }] },
+    { key: 'priority', label: 'গুরুত্ব', type: 'select', required: true, options: [{ value: 'normal', label: 'সাধারণ' }, { value: 'important', label: 'জরুরি' }] },
+    { key: 'status', label: 'অবস্থা', type: 'select', required: true, options: statusOptions(['draft', 'published', 'archived']) },
+    { key: 'expires_at', label: 'মেয়াদ শেষ', type: 'datetime-local' },
+  ] },
+}
+const managerTitles: Record<string, string> = { full_name: 'নাম', email: 'ইমেইল', name: 'ক্লাস', title: 'শিরোনাম', status: 'অবস্থা', starts_at: 'শুরু', lesson_date: 'তারিখ', due_at: 'জমার শেষ সময়', resource_url: 'উপকরণের লিংক', note: 'মন্তব্য', description: 'বিবরণ', phone: 'ফোন', subject: 'বিষয়', level: 'স্তর', visibility: 'দর্শক', priority: 'গুরুত্ব', recorded_at: 'নথিভুক্ত' }
+function inputDate(value: unknown, dateOnly = false) {
+  if (!value) return ''
+  const date = new Date(String(value))
+  if (Number.isNaN(date.getTime())) return String(value)
+  const offset = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - offset).toISOString().slice(0, dateOnly ? 10 : 16)
+}
+function ModuleManager({ active, profile, query }: { active: string; profile: AcademyProfile; query: string }) {
+  const config = moduleConfigs[active]
+  const [rows, setRows] = useState<Record<string, any>[]>([])
+  const [references, setReferences] = useState<Record<string, { value: string; label: string }[]>>({})
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState<Record<string, any> | null>(null)
+  const [form, setForm] = useState<Record<string, string | boolean>>({})
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [reload, setReload] = useState(0)
+  useEffect(() => {
+    let live = true
+    async function load() {
+      if (!supabase) { setError('Supabase সংযোগ সেট করা নেই।'); setLoading(false); return }
+      setLoading(true); setError('')
+      const { data, error: loadError } = await supabase.from(config.table).select('*').order('created_at', { ascending: false }).limit(100)
+      if (!live) return
+      if (loadError) setError('তথ্য লোড হয়নি। ডেটাবেজ সংযোগ ও অনুমতি যাচাই করুন।')
+      setRows(data ?? [])
+      const refs: Record<string, { value: string; label: string }[]> = {}
+      if (config.fields.some(field => field.key === 'class_id')) {
+        const { data: classes } = await supabase.from('classes').select('id,name,subject').order('name')
+        refs.class_id = (classes ?? []).map((item: any) => ({ value: item.id, label: `${item.name} · ${item.subject}` }))
+      }
+      if (config.fields.some(field => field.key === 'session_id')) {
+        const [{ data: sessions }, { data: students }] = await Promise.all([
+          supabase.from('class_sessions').select('id,title,starts_at').order('starts_at', { ascending: false }).limit(100),
+          supabase.from('profiles').select('id,full_name,email').eq('role', 'student').order('full_name').limit(100),
+        ])
+        refs.session_id = (sessions ?? []).map((item: any) => ({ value: item.id, label: `${item.title} · ${inputDate(item.starts_at)}` }))
+        refs.student_id = (students ?? []).map((item: any) => ({ value: item.id, label: item.full_name || item.email || item.id }))
+      }
+      if (live) { setReferences(refs); setLoading(false) }
+    }
+    void load()
+    return () => { live = false }
+  }, [config, reload])
+  function begin(row?: Record<string, any>) {
+    const next: Record<string, string | boolean> = {}
+    for (const field of config.fields) {
+      let value: any = row?.[field.key] ?? (field.type === 'checkbox' ? false : '')
+      if (field.type === 'datetime-local') value = inputDate(value)
+      if (field.type === 'date') value = inputDate(value, true)
+      next[field.key] = field.type === 'checkbox' ? Boolean(value) : String(value ?? '')
+    }
+    setEditing(row ?? null); setForm(next); setError(''); setMessage('')
+  }
+  function setValue(key: string, value: string | boolean) { setForm(current => ({ ...current, [key]: value })) }
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!supabase) return
+    setSaving(true); setError(''); setMessage('')
+    const payload: Record<string, any> = {}
+    for (const field of config.fields) {
+      let value = form[field.key]
+      if (field.type === 'checkbox') payload[field.key] = Boolean(value)
+      else if (field.type === 'datetime-local') payload[field.key] = value ? new Date(String(value)).toISOString() : null
+      else if (field.type === 'number') payload[field.key] = value ? Number(value) : 45
+      else payload[field.key] = String(value ?? '').trim() || null
+    }
+    if (!editing && ['classes', 'class_sessions', 'daily_lessons', 'homework', 'library_resources', 'notices'].includes(config.table)) payload.created_by = profile.id
+    if (!editing && config.table === 'attendance') payload.recorded_by = profile.id
+    if (config.table === 'notices' && payload.status === 'published') payload.published_at = editing?.published_at || new Date().toISOString()
+    if (['classes', 'class_sessions', 'daily_lessons', 'homework', 'library_resources', 'notices'].includes(config.table)) payload.updated_at = new Date().toISOString()
+    const result = editing ? await supabase.from(config.table).update(payload).eq('id', editing.id) : await supabase.from(config.table).insert(payload)
+    setSaving(false)
+    if (result.error) { setError('সংরক্ষণ হয়নি। আবশ্যক তথ্য, সংযোগ এবং অ্যাডমিন অনুমতি যাচাই করুন।'); return }
+    setMessage(editing ? 'পরিবর্তন সংরক্ষিত হয়েছে।' : 'নতুন রেকর্ড যোগ হয়েছে.')
+    setEditing(null); setForm({}); setReload(count => count + 1)
+  }
+  const visibleRows = rows.filter(row => JSON.stringify(row).toLowerCase().includes(query.toLowerCase()))
+  const labelFor = (field: ManagerField) => field.options ?? references[field.key] ?? []
+  return <section className="premium-module"><div className="premium-section-title"><div><div className="premium-date"><span/> একাডেমি পরিচালনা</div><h2>{active}</h2><p>রেকর্ড যোগ করুন, পরিবর্তন করুন ও প্রকাশনার অবস্থা নিয়ন্ত্রণ করুন।</p></div><span className="live-pill"><i/> লাইভ ডেটা</span></div>
+    {error && <div className="premium-alert" role="status">{error}</div>}{message && <div className="advanced-feedback" role="status">{message}</div>}
+    <article className="premium-panel manager-panel"><div className="manager-toolbar"><div className="module-summary"><span className="panel-symbol teal"><Icon name={navGroups.flatMap(group => group.items).find(item => item.label === active)?.icon ?? 'grid'} size={18}/></span><div><b>{active} পরিচালনা</b><small>{loading ? 'তথ্য পড়া হচ্ছে…' : `${bnNumber(visibleRows.length)}টি রেকর্ড`}</small></div></div>{config.create !== false && <button className="premium-add manager-add" onClick={() => begin()}><Icon name="plus" size={16}/> নতুন যোগ করুন</button>}</div>
+      {editing && <form className="manager-form" onSubmit={save}><div className="manager-form-head"><h3>{editing.id ? 'রেকর্ড পরিবর্তন' : 'নতুন রেকর্ড'}</h3><button type="button" onClick={() => { setEditing(null); setForm({}) }}>বন্ধ করুন</button></div><div className="manager-fields">{config.fields.map(field => <label className={`advanced-field ${field.type === 'checkbox' ? 'manager-checkbox' : ''}`} key={field.key}><span>{field.label}</span>{field.type === 'textarea' ? <textarea required={field.required} value={String(form[field.key] ?? '')} onChange={event => setValue(field.key, event.target.value)} rows={3}/> : field.type === 'select' ? <select required={field.required} value={String(form[field.key] ?? '')} onChange={event => setValue(field.key, event.target.value)}><option value="">নির্বাচন করুন</option>{labelFor(field).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : field.type === 'checkbox' ? <input type="checkbox" checked={Boolean(form[field.key])} onChange={event => setValue(field.key, event.target.checked)}/> : <input type={field.type ?? 'text'} required={field.required} min={field.type === 'number' ? 1 : undefined} max={field.key === 'duration_minutes' ? 600 : undefined} value={String(form[field.key] ?? '')} onChange={event => setValue(field.key, event.target.value)} />}{field.hint && <small>{field.hint}</small>}</label>)}</div><div className="manager-form-actions"><button type="button" className="manager-cancel" onClick={() => { setEditing(null); setForm({}) }}>বাতিল</button><button className="premium-add" type="submit" disabled={saving}>{saving ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ করুন'}</button></div></form>}
+      {loading ? <Empty label="তথ্য লোড হচ্ছে…"/> : visibleRows.length ? <div className="manager-list">{visibleRows.map(row => <div className="manager-row" key={row.id}><div><b>{config.titleKeys.map(key => row[key]).find(Boolean) || row.id}</b><small>{config.detailKeys.map(key => { const value = row[key]; if (value == null || value === '') return null; return `${managerTitles[key] ?? key}: ${key.endsWith('_at') || key === 'lesson_date' ? inputDate(value, key === 'lesson_date') : String(value)}` }).filter(Boolean).join(' · ')}</small></div><button onClick={() => begin(row)}>পরিবর্তন</button></div>)}</div> : <Empty label={query ? 'এই অনুসন্ধানে কোনো রেকর্ড নেই।' : `এখনো ${active} রেকর্ড নেই।`} />}</article>
+  </section>
+}
